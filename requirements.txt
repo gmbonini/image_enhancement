@@ -1,0 +1,11 @@
+matplotlib
+scikit_learn
+scipy
+pandas
+opencv-python
+Pillow
+numpy==1.18.1
+tqdm
+imutils
+rawpy
+
