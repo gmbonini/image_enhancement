@@ -5,6 +5,7 @@ This repository contains Python scripts to to enhance image quality and crop out
 The scripts:
 
 -   image_cropper.py: removes black borders from pictures by detecting them and cropping only the image itself.
+-   color_correction.py: make adjustments in the image color with two approaches: 1 - Using only image processing techniques; 2 - Using a Deep Learning model that is able to generate images, to perform a fully-automatic color correction and detail enhancement.
 
 ### Installation
 
@@ -25,13 +26,12 @@ pip install -r requirements.txt
 
 Each script can be run individually from the command line and have the following possible arguments:
 
-*   --image_dir: path pointing to the directory containg all image files (.jpeg, .jpg, .png or .cr3 files are supported);
-*   --out_dir: path pointing to the desired output directory, where the fixed videos or enhanced images will be saved.
+-   --image_dir: path pointing to the directory containg all image files (.jpeg, .jpg, .png or .cr3 files are supported);
+-   --out_dir: path pointing to the desired output directory, where the fixed videos or enhanced images will be saved.
 
-The image_stitcher script has only two arguments: video_dir and out_dir. You can run it like this:
-
-Likewise, the image_cropper.py script also has only two arguments: image_dir and out_dir. You can run it like this:
+You can run the scripts like this:
 
 ```shell
 python image_cropper.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH
+python color_correction.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH
 ```

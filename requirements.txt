@@ -8,4 +8,4 @@ numpy==1.18.1
 tqdm
 imutils
 rawpy
-
+git+https://github.com/arsenyinfo/EnlightenGAN-inference
