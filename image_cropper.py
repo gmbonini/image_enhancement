@@ -13,10 +13,11 @@ import rawpy
 
 
 class ImageCropper:
-    def __init__(self, directory: str, output_dir: str) -> None:
+    def __init__(self, directory: str, output_dir: str, percentage: float) -> None:
 
         self.directory = directory
         self.output_dir = output_dir
+        self.percentage = percentage
 
         # List all images that are saved in a compressed format (JPEG, PNG, etc)
         compressed_images_list = list(list_images(directory))
@@ -102,9 +103,6 @@ class ImageCropper:
         the black borders
         """
 
-        eps_x = int(image.shape[1] * (0.5 / 100))
-        eps_y = int(image.shape[0] * (0.5 / 100))
-
         # First, try the dark approach
         box = self.dark_approach(image)
 
@@ -117,10 +115,12 @@ class ImageCropper:
             box = self.bright_approach(image)
 
         # Crop the image based on the bounding box values
-        cropped = image[
-            box[1] + eps_y : box[3] - eps_y, box[0] + eps_x : box[2] - eps_x
-        ]
+        cropped = image[box[1]: box[3], box[0] : box[2]]
 
+        increase_crop_x = int(cropped.shape[1] * self.percentage)
+        increase_crop_y = int(cropped.shape[0] * self.percentage)
+        cropped = cropped[increase_crop_y: cropped.shape[0] - increase_crop_y, increase_crop_x: cropped.shape[1] - increase_crop_x]
+        
         return cropped
 
     def crop(self):
@@ -162,12 +162,21 @@ if __name__ == "__main__":
         type=str,
         help="Path to the output directory, where the cropped images will be saved",
     )
+    parser.add_argument(
+        "-c",
+        "--percentage",
+        type=float,
+        default=5,
+        help="Increase the crop based on percentage value (a percentage between 0 and 100), defaults to 5",
+    )
 
     args = parser.parse_args()
 
     directory = args.image_dir
     output = args.out_dir
+    percentage = args.percentage / 100
+
     os.makedirs(output, exist_ok=True)
 
-    croper = ImageCropper(directory, output)
+    croper = ImageCropper(directory, output, percentage)
     croper.crop()

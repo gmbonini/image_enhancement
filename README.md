@@ -29,9 +29,13 @@ Each script can be run individually from the command line and have the following
 -   --image_dir: path pointing to the directory containg all image files (.jpeg, .jpg, .png or .cr3 files are supported);
 -   --out_dir: path pointing to the desired output directory, where the fixed videos or enhanced images will be saved.
 
+The image_cropper has an aditional argument:
+
+-   --percentage: increase the crop based on percentage value (a percentage between 0 and 100), defaults to 5.
+
 You can run the scripts like this:
 
 ```shell
-python image_cropper.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH
+python image_cropper.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --percentage 5
 python color_correction.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH
 ```
