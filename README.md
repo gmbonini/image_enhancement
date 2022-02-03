@@ -31,7 +31,7 @@ Each script can be run individually from the command line and have the following
 
 The image_cropper has an aditional argument:
 
--   --percentage: increase the crop based on percentage value (a percentage between 0 and 100), defaults to 5.
+-  --overcrop Increase the crop based on percentage value (the overcrop between 0 and 100), defaults to 5
 
 You can run the scripts like this:
 

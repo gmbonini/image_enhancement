@@ -13,11 +13,11 @@ import rawpy
 
 
 class ImageCropper:
-    def __init__(self, directory: str, output_dir: str, percentage: float) -> None:
+    def __init__(self, directory: str, output_dir: str, overcrop: float) -> None:
 
         self.directory = directory
         self.output_dir = output_dir
-        self.percentage = percentage
+        self.overcrop = overcrop
 
         # List all images that are saved in a compressed format (JPEG, PNG, etc)
         compressed_images_list = list(list_images(directory))
@@ -117,8 +117,8 @@ class ImageCropper:
         # Crop the image based on the bounding box values
         cropped = image[box[1]: box[3], box[0] : box[2]]
 
-        increase_crop_x = int(cropped.shape[1] * self.percentage)
-        increase_crop_y = int(cropped.shape[0] * self.percentage)
+        increase_crop_x = int(cropped.shape[1] * self.overcrop)
+        increase_crop_y = int(cropped.shape[0] * self.overcrop)
         cropped = cropped[increase_crop_y: cropped.shape[0] - increase_crop_y, increase_crop_x: cropped.shape[1] - increase_crop_x]
         
         return cropped
@@ -164,19 +164,19 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-c",
-        "--percentage",
+        "--overcrop",
         type=float,
         default=5,
-        help="Increase the crop based on percentage value (a percentage between 0 and 100), defaults to 5",
+        help="Increase the crop based on percentage value (the overcrop between 0 and 100), defaults to 5",
     )
 
     args = parser.parse_args()
 
     directory = args.image_dir
     output = args.out_dir
-    percentage = args.percentage / 100
+    overcrop = args.overcrop / 100
 
     os.makedirs(output, exist_ok=True)
 
-    croper = ImageCropper(directory, output, percentage)
+    croper = ImageCropper(directory, output, overcrop)
     croper.crop()
