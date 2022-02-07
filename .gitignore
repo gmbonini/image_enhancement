@@ -60,3 +60,4 @@ video/out/
 data/
 out**/
 bbonik
+test_hough.py

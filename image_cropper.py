@@ -66,9 +66,6 @@ class ImageCropper:
         """
 
         # Convert the image to the HSV color space
-        image = imutils.adjust_brightness_contrast(
-            image, brightness=30.0, contrast=50.0
-        )
         res = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         hue, sat, val = cv2.split(res)
 
