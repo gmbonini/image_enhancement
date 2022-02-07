@@ -2,6 +2,7 @@ import os
 import pdb
 from argparse import ArgumentParser
 from glob import glob
+import math
 
 import cv2
 import numpy as np
@@ -33,73 +34,6 @@ class ImageCropper:
             compressed_images_list + raw_images_list + raw_images_list_lower
         )
 
-    def bright_approach(self, image, th=10):
-
-        """
-        This function is responsible for estimating the bounding box of the picture
-        (without the black borders) if it's mostly bright
-        """
-
-        # Convert the image to grayscale
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-        # Binarize the image to get the image splits without the black bar
-        _, thresh = cv2.threshold(gray, th, 255, cv2.THRESH_BINARY)
-
-        # Find the contours of the binary image
-        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        contours = imutils.grab_contours(contours)
-
-        # Get the biggest contour (should be the picture contour)
-        contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
-        x, y, w, h = cv2.boundingRect(contour)
-
-        box = np.array([x, y, x + w, y + h])
-
-        return box
-
-    def dark_approach(self, image):
-
-        """
-        This function is responsible for estimating the bounding box of the picture
-        (without the black borders) if it's mostly dark
-        """
-
-        # Convert the image to the HSV color space
-        image = imutils.adjust_brightness_contrast(
-            image, brightness=30.0, contrast=50.0
-        )
-        res = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        hue, sat, val = cv2.split(res)
-
-        # Find the contours of the saturation channel
-        contours = cv2.findContours(hue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        contours = imutils.grab_contours(contours)
-
-        # Get the bounding boxes for the most significant contours
-        boxes = []
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-
-            if w > image.shape[1] * 0.1 and h > image.shape[0] * 0.1:
-                # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
-                boxes.append(np.array([x, y, x + w, y + h]))
-        boxes = np.array(boxes, dtype=np.int32)
-
-        # Get the bounding box that encloses all the bounding boxes
-        if len(boxes) == 1:
-            box = boxes[0]
-        elif len(boxes) == 0:
-            box = None
-        else:
-            x1 = np.min(boxes[:, 0])
-            y1 = np.min(boxes[:, 1])
-            x2 = np.max(boxes[:, 2])
-            y2 = np.max(boxes[:, 3])
-            box = np.array([x1, y1, x2, y2], dtype=np.int32)
-
-        return box
-
     def remove_borders(self, image: np.ndarray, draw=True) -> np.ndarray:
 
         """
@@ -113,9 +47,7 @@ class ImageCropper:
 
         # If the dark approach resulted in a bounding box that encloses almost
         # all the image, switch to the bright approach
-        if box is None:
-            box = self.bright_approach(image)
-        elif (
+        if (
             box[2] - box[0] > 0.865 * image.shape[1]
             or box[3] - box[1] > 0.865 * image.shape[0]
         ):
@@ -146,15 +78,79 @@ class ImageCropper:
                 image = cv2.imread(image_path, 1)
 
             # Remove the black borders
-            cropped = self.remove_borders(image)
+            # cropped = self.remove_borders(image)
+            self.hough(image)
 
             # Save the new image
-            new_path = os.path.join(
-                self.output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
-            )
-            cv2.imwrite(new_path, cropped)
+            # new_path = os.path.join(
+            #     self.output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
+            # )
+            # cv2.imwrite(new_path, cropped)
 
         print(f"Cropped pictures saved to {self.output_dir}")
+
+    def hough(self, image: np.ndarray) -> np.ndarray:
+
+        image = cv2.GaussianBlur(image, (5, 5), 0)
+        res = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        hue, sat, val = cv2.split(res)
+
+        image = imutils.adjust_brightness_contrast(
+            image, brightness=30.0, contrast=50.0
+        )
+
+        cv2.namedWindow(
+            "t", cv2.WINDOW_NORMAL
+        )  # Create window with freedom of dimensions
+
+        # canny = imutils.auto_canny(image, 0.33)
+        contours = cv2.findContours(sat, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours = imutils.grab_contours(contours)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+        boxes = []
+        for contour in contours:
+            cv2.drawContours(image, [contour], -1, (255, 0, 255), 4)
+        #     boxes.append(cv2.boundingRect(contour))
+
+        # boxes = np.array(boxes, dtype=np.int32)
+        # x1 = np.min(boxes[:, 0])
+        # x2 = np.min(boxes[:, 0])
+        # x3 = np.min(boxes[:, 0])
+        # x1 = np.min(boxes[:, 0])
+
+        # lines = cv2.HoughLines(canny, 1, np.pi / 180, 150, None, 0, 0)
+
+        # if lines is not None:
+        #     for i in range(0, len(lines)):
+        #         rho = lines[i][0][0]
+        #         theta = lines[i][0][1]
+        #         a = math.cos(theta)
+        #         b = math.sin(theta)
+        #         x0 = a * rho
+        #         y0 = b * rho
+        #         pt1 = (int(x0 + 1000 * (-b)), int(y0 + 1000 * (a)))
+        #         pt2 = (int(x0 - 1000 * (-b)), int(y0 - 1000 * (a)))
+        #         cv2.line(image, pt1, pt2, (255, 0, 0), 3, cv2.LINE_AA)
+
+        # linesP = cv2.HoughLinesP(canny, 1, np.pi / 6, 10, None, 0, 0)
+
+        # if linesP is not None:
+        #     for i in range(0, len(linesP)):
+        #         l = linesP[i][0]
+        #         cv2.line(
+        #             image, (l[0], l[1]), (l[2], l[3]), (0, 0, 255), 10, cv2.LINE_AA
+        #         )
+
+        cv2.imshow("t", image)
+        k = cv2.waitKey(0)
+        if k == ord("q"):
+            exit()
+
+        # cv2.imshow("t", image)
+        # k = cv2.waitKey(0)
+        # if k == ord("q"):
+        #     exit()
+        return 0
 
 
 if __name__ == "__main__":
