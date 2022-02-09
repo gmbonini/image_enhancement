@@ -61,3 +61,4 @@ data/
 out**/
 bbonik
 test_hough.py
+remove_dust.py

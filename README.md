@@ -17,10 +17,18 @@ conda create --name enhance python=3.8
 conda activate enhance
 ```
 
+Make sure to install Cuda-Toolkit and cuDNN to run the Deep Learning models on your GPU:
+
+```
+conda install -c nvidia cudatoolkit=11.3
+conda install -c nvidia cudnn
+```
+
 Install the required Python modules
 
 ```shell
 pip install -r requirements.txt
+pip install torch==1.10.2+cu113 torchvision==0.11.3+cu113 torchaudio===0.10.2+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
 ```
 
 ### Run the scripts

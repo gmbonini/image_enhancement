@@ -4,7 +4,7 @@ scipy
 pandas
 opencv-python
 Pillow
-numpy==1.18.1
+numpy
 tqdm
 imutils
 rawpy
