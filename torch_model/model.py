@@ -108,3 +108,36 @@ class MobileNet(nn.Module):
 
         X = self.model(X)
         return X
+
+class ResNet50(nn.Module):
+    def __init__(self, input_shape: list, num_classes=36):
+        super(ResNet50, self).__init__()
+        self.input_shape = input_shape
+        self.num_classes = num_classes
+
+        self.build_model()
+
+    def build_model(self):
+
+        self.model = torchvision.models.resnet50(pretrained=True)
+
+        fully_conected_layers = nn.Sequential(
+            nn.Linear(self.model.fc.in_features, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, self.num_classes),
+        )
+
+        self.model.fc = fully_conected_layers
+
+        return
+
+    def forward(self, X):
+
+        X = self.model(X)
+        return X

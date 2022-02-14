@@ -5,12 +5,11 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import imutils
-import pdb
 from torch_model.model import MobileNet
+from torch_model.model import ResNet50
 from argparse import ArgumentParser
 from imutils.paths import list_images
 from tqdm import tqdm
-import rawpy
 
 
 class RotationModel(object):
@@ -22,7 +21,9 @@ class RotationModel(object):
         self.input_shape = [224, 224, 3]
         state_dict = dict(torch.load(model_path)["model_state_dict"])
 
-        self.model = MobileNet(self.input_shape, num_classes=4)
+        # self.model = MobileNet(self.input_shape, num_classes=4)
+        self.model = ResNet50(self.input_shape, num_classes=4)
+
         self.model.load_state_dict(state_dict)
         self.model.eval()
         self.model.cuda()
@@ -59,16 +60,27 @@ class RotationModel(object):
     def run(self):
         for image_path in tqdm(self.image_list):
             img = cv2.imread(image_path, 1)
+
+            img = cv2.resize(img, (1200, 640))
+            img = cv2.copyMakeBorder(
+                img,
+                40,
+                40,
+                40,
+                40,
+                borderType=cv2.BORDER_CONSTANT,
+                value=0,
+            )
+
             res = self.inference(img)
-            
+
             # Save the new image
             new_path = os.path.join(
                 self.out_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
             )
             warp = self.find_borders(res)
-            
-            cv2.imwrite(new_path, warp)
 
+            cv2.imwrite(new_path, warp)
 
     def bright_approach(self, image, th=10):
 
@@ -121,15 +133,10 @@ class RotationModel(object):
         right_sort_by_y_indexes = np.argsort(right_points[:, 1])
         top_right = right_points[right_sort_by_y_indexes[0]]
         bottom_right = right_points[right_sort_by_y_indexes[1]]
-        
-        box_points = [
-            bottom_right,
-            bottom_left,
-            top_left,
-            top_right
-        ]
+
+        box_points = [bottom_right, bottom_left, top_left, top_right]
         box_points = np.array(box_points, dtype=np.int32)
-        
+
         return box_points, angle
 
     def dark_approach(self, image):
@@ -163,7 +170,6 @@ class RotationModel(object):
                     )
                 )
 
-                
                 """
                 OpenCV's boxPoints function doesn't return the points in the same order all the time
                 So we need re-order them to match our reference:
@@ -188,13 +194,8 @@ class RotationModel(object):
                 right_sort_by_y_indexes = np.argsort(right_points[:, 1])
                 top_right = right_points[right_sort_by_y_indexes[0]]
                 bottom_right = right_points[right_sort_by_y_indexes[1]]
-                
-                box_points = [
-                    bottom_right,
-                    bottom_left,
-                    top_left,
-                    top_right
-                ]
+
+                box_points = [bottom_right, bottom_left, top_left, top_right]
                 box_points = np.array(box_points, dtype=np.int32)
                 boxes.append(box_points)
         boxes = np.array(boxes, dtype=np.int32)
@@ -243,21 +244,19 @@ class RotationModel(object):
         # If the dark approach resulted in a bounding box that encloses almost
         # all the image, switch to the bright approach
 
-        width = box[0, 0] - box[2, 0] # Bottom right X - Top left X
-        height = box[0, 1] - box[2, 1] # Bottom right Y - Top left Y
+        width = box[0, 0] - box[2, 0]  # Bottom right X - Top left X
+        height = box[0, 1] - box[2, 1]  # Bottom right Y - Top left Y
 
         if box is None:
             box, angle = self.bright_approach(image)
-        elif (
-            width > 0.865 * image.shape[1]
-            or height > 0.865 * image.shape[0]
-        ):
+        elif width > 0.865 * image.shape[1] or height > 0.865 * image.shape[0]:
             box, angle = self.bright_approach(image)
 
-        print(f"BBox angle: {angle:.4f}")
         # cv2.drawContours(image, [box], 0, (36, 255, 12), 5)
         frame_points = np.array([[width, height], [0, height], [0, 0], [width, 0]])
-        transform = cv2.getAffineTransform(box[:-1].astype(np.float32), frame_points[:-1].astype(np.float32))
+        transform = cv2.getAffineTransform(
+            box[:-1].astype(np.float32), frame_points[:-1].astype(np.float32)
+        )
         warp = cv2.warpAffine(image, transform, (width, height))
 
         return warp
@@ -265,7 +264,7 @@ class RotationModel(object):
 
 if __name__ == "__main__":
 
-    MODEL_PATH = "./rotation_model/epoch_32.pth"
+    MODEL_PATH = "./rotation_model/epoch_27.pth"
 
     parser = ArgumentParser()
     parser.add_argument(
