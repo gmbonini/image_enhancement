@@ -64,5 +64,3 @@ test_hough.py
 remove_dust.py
 test_for_dust.py
 dust/
-rotation_model/epoch_32.pth
-rotation_model/epoch_27.pth
