@@ -145,10 +145,19 @@ class ImageCropper:
             # Remove the black borders
             cropped = self.remove_borders(image)
 
-            # Save the new image
-            new_path = os.path.join(
-                self.output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
+            # Windows path
+            if "\\" in image_path:
+                new_path = os.path.join(
+                    self.output_dir, image_path.split("\\")[-1].split(".")[0] + ".jpg"
             )
+
+            # Linux Path
+            if "/" in image_path:
+                new_path = os.path.join(
+                    self.output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
+            )
+
+            # Save the new image
             cv2.imwrite(new_path, cropped)
 
         print(f"Cropped pictures saved to {self.output_dir}")

@@ -10,13 +10,19 @@ from imutils.paths import list_images
 
 
 class ImageColorCorrection:
-    def __init__(self, directory: str, output_dir: str) -> None:
+    def __init__(self, directory: str, output_dir: str, gan_method, image_proc_method, white_balance) -> None:
         self.directory = directory
         self.output_dir = output_dir
         self.model = EnlightenOnnxModel()
         self.alpha = 1.0
         self.beta = 15
         self.gamma = 0.8
+        self.gan_method = gan_method
+        self.image_proc_method = image_proc_method
+        self.apply_white_balance = white_balance
+
+        if self.image_proc_method == False and  self.image_proc_method == False:
+            self.image_proc_method = True
 
     def gamma_correction(self, img, gamma=0.8):
         lookUpTable = np.empty((1,256), np.uint8)
@@ -75,32 +81,53 @@ class ImageColorCorrection:
         for image_path in tqdm(images):
 
             img = cv2.imread(image_path)
-            image_name = image_path.split("/")[-1]
 
-            brightness_corrected = self.brightness_correction(img, alpha=self.alpha, beta=self.beta)
-            gamma_corrected = self.gamma_correction(brightness_corrected, self.gamma)
-            saturation_corrected = self.saturation_correction(gamma_corrected)
-            white_balanced = self.white_balance_correction(saturation_corrected)
-            result = saturation_corrected
+            if self.image_proc_method:
+                brightness_corrected = self.brightness_correction(img, alpha=self.alpha, beta=self.beta)
+                gamma_corrected = self.gamma_correction(brightness_corrected, self.gamma)
+                saturation_corrected = self.saturation_correction(gamma_corrected)
+                result = saturation_corrected
 
-            directory_name = os.path.join(self.output_dir, image_name.split('.')[0])
-            
-            model_res = self.model.predict(img.copy())
-            model_res_white = self.white_balance_correction(model_res)
-            model_res = np.ascontiguousarray(model_res, dtype=np.uint8)
-            model_res_white = np.ascontiguousarray(model_res_white, dtype=np.uint8)
+                # Windows path
+                if "\\" in image_path:
+                    new_path = os.path.join(
+                        self.output_dir, image_path.split("\\")[-1].split(".")[0] + "_image_processing.jpg"
+                )
 
-            HSV_image_path = directory_name + "/" + "HSV_no_white_balance_" + image_name
-            HSV_WB_image_path = directory_name + "/" + "HSV_with_white_balance_" + image_name
-            GAN_image_path = directory_name + "/" + "GAN_no_white_balance_" + image_name
-            GAN_WB_image_path = directory_name + "/" + "GAN_with_white_balance_" + image_name
+                # Linux Path
+                if "/" in image_path:
+                    new_path = os.path.join(
+                        self.output_dir, image_path.split("/")[-1].split(".")[0] + "_image_processing.jpg"
+                )
 
-            os.makedirs(directory_name, exist_ok=True)
+                cv2.imwrite(new_path, result)              # HSV image
 
-            cv2.imwrite(HSV_image_path, result)             # HSV image
-            cv2.imwrite(HSV_WB_image_path, white_balanced)  # HSV with white balance
-            cv2.imwrite(GAN_image_path, model_res)          # GAN
-            cv2.imwrite(GAN_WB_image_path, model_res_white) # GAN with white balance
+                if  self.apply_white_balance:
+                    white_balanced = self.white_balance_correction(saturation_corrected)
+                    cv2.imwrite(new_path, white_balanced)  # HSV with white balance
+
+            if self.gan_method: 
+                model_res = self.model.predict(img.copy())
+                model_res = np.ascontiguousarray(model_res, dtype=np.uint8)
+
+                # Windows path
+                if "\\" in image_path:
+                    new_path = os.path.join(
+                        self.output_dir, image_path.split("\\")[-1].split(".")[0] + "_gan.jpg"
+                )
+
+                # Linux Path
+                if "/" in image_path:
+                    new_path = os.path.join(
+                        self.output_dir, image_path.split("/")[-1].split(".")[0] + "_gan.jpg"
+                )
+
+                cv2.imwrite(new_path, model_res)           # GAN
+
+                if  self.apply_white_balance:
+                    model_res_white = self.white_balance_correction(model_res)
+                    model_res_white = np.ascontiguousarray(model_res_white, dtype=np.uint8)
+                    cv2.imwrite(new_path, model_res_white) # GAN with white balance
 
         return
 
@@ -120,13 +147,33 @@ if __name__ == "__main__":
         type=str,
         help="Path to the output directory, where the images will be saved",
     )
-
+    parser.add_argument(
+        "-g",
+        "--gan",
+        action='store_true',
+        help="Uses the Generative Adversarial Network to enhance the image.",
+    )
+    parser.add_argument(
+        "-p",
+        "--image_proc",
+        action='store_true',
+        help="Uses image processing to enhance the image.",
+    )
+    parser.add_argument(
+        "-w",
+        "--white_balance",
+        action='store_true',
+        help="Apply a white balance adjustment to the image.",
+    )
     args = parser.parse_args()
 
     directory = args.image_dir
     output = args.out_dir
+    gan = args.gan
+    image_proc = args.image_proc
+    white_balance = args.white_balance
     os.makedirs(output, exist_ok=True)
 
-    color_correction = ImageColorCorrection(directory, output)
+    color_correction = ImageColorCorrection(directory, output, gan, image_proc, white_balance)
     color_correction.image_color_correction()
 

@@ -1092,10 +1092,19 @@ if __name__ == "__main__":
         enhanced = np.ascontiguousarray(enhanced) * 255.0
         enhanced = enhanced.astype(np.uint8)
 
-        # Save the new image
-        new_path = os.path.join(
-            output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
+        # Windows path
+        if "\\" in image_path:
+            new_path = os.path.join(
+                output_dir, image_path.split("\\")[-1].split(".")[0] + ".jpg"
         )
+
+        # Linux Path
+        if "/" in image_path:
+            new_path = os.path.join(
+                output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
+        )
+
+        # Save the new image
         enhanced = cv2.cvtColor(enhanced, cv2.COLOR_RGB2BGR)
         cv2.imwrite(new_path, enhanced)
 
