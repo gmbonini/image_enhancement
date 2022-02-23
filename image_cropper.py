@@ -1,15 +1,15 @@
 import os
-import pdb
-from argparse import ArgumentParser
-from glob import glob
-
 import cv2
 import numpy as np
-from imutils.paths import list_images
 import imutils
+import rawpy
+
+from argparse import ArgumentParser
+from glob import glob
+from imutils.paths import list_images
 from tqdm import tqdm
 
-import rawpy
+sp = os.path.sep
 
 
 class ImageCropper:
@@ -145,17 +145,12 @@ class ImageCropper:
             # Remove the black borders
             cropped = self.remove_borders(image)
 
-            # Windows path
-            if "\\" in image_path:
-                new_path = os.path.join(
-                    self.output_dir, image_path.split("\\")[-1].split(".")[0] + ".jpg"
-            )
-
-            # Linux Path
-            if "/" in image_path:
-                new_path = os.path.join(
-                    self.output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
-            )
+            image_name = image_path.split(sp)[-1].split(".")[0]
+            image_name = image_name.replace(" ","_")
+            image_name = image_name.replace("'","_")
+            image_name = image_name.replace(",","_")
+            
+            new_path = os.path.join(self.output_dir, image_name + ".jpg")
 
             # Save the new image
             cv2.imwrite(new_path, cropped)

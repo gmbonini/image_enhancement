@@ -1,16 +1,17 @@
-from argparse import ArgumentParser
 import os
-import pdb
-import time
 import math
-
+import rawpy
 import cv2
-from imutils.paths import list_images
 import numpy as np
+
 from tqdm import tqdm
 from skimage.color import rgb2gray
 from skimage import img_as_float
-import rawpy
+from glob import glob
+from argparse import ArgumentParser
+from imutils.paths import list_images
+
+sp = os.path.sep
 
 
 class Enhancer(object):
@@ -1074,7 +1075,19 @@ if __name__ == "__main__":
     parameters["color_correction"] = True
     enhancer = Enhancer(parameters)
 
-    images_list = list(list_images(directory))
+    # List all images that are saved in a compressed format (JPEG, PNG, etc)
+    compressed_images_list = list(list_images(directory))
+
+    # List all images saved in a raw format with capitalized characters (CR3)
+    raw_images_list = list(glob(os.path.join(directory, "*.CR3")))
+
+    # List all images saved in a raw format with lowercase characters (cr3)
+    raw_images_list_lower = list(glob(os.path.join(directory, "*.cr3")))
+
+    # Sum all the image lists
+    images_list = (
+        compressed_images_list + raw_images_list + raw_images_list_lower
+    )
 
     for image_path in tqdm(images_list):
 
@@ -1092,20 +1105,15 @@ if __name__ == "__main__":
         enhanced = np.ascontiguousarray(enhanced) * 255.0
         enhanced = enhanced.astype(np.uint8)
 
-        # Windows path
-        if "\\" in image_path:
-            new_path = os.path.join(
-                output_dir, image_path.split("\\")[-1].split(".")[0] + ".jpg"
-        )
-
-        # Linux Path
-        if "/" in image_path:
-            new_path = os.path.join(
-                output_dir, image_path.split("/")[-1].split(".")[0] + ".jpg"
-        )
+        image_name = image_path.split(sp)[-1].split(".")[0]
+        image_name = image_name.replace(" ","_")
+        image_name = image_name.replace("'","_")
+        image_name = image_name.replace(",","_")
+        
+        new_path = os.path.join(output_dir, image_name + ".jpg")
 
         # Save the new image
         enhanced = cv2.cvtColor(enhanced, cv2.COLOR_RGB2BGR)
         cv2.imwrite(new_path, enhanced)
 
-    print(f"Brightness corrected pictures saved to {output_dir}")
+    print(f"Enhanced pictures with Skimage saved to {output_dir}")
