@@ -39,6 +39,10 @@ The `enhance_image_opencv` and `enhance_image_gan` has an aditional argument:
 
 -   --white_balance (**optional**): Apply a white balance adjustment to the image.
 
+The `enhance_image_gan` has an aditional argument:
+
+-   --resize: Apply a risize to reduce the image size. The default value (0.8) generate an image with 80 percent of the original size.
+
 You can run the scripts like this:
 
 ```shell
@@ -46,7 +50,7 @@ python image_cropper.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --over
 
 python enhance_image_opencv.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --white_balance
 
-python enhance_image_gan.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --white_balance
+python enhance_image_gan.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --white_balance  --resize 0.8
 
 python enhance_image_skimage.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH
 ```
