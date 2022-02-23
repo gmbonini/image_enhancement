@@ -1086,7 +1086,7 @@ if __name__ == "__main__":
 
     # Sum all the image lists
     images_list = (
-        compressed_images_list + raw_images_list + raw_images_list_lower
+        set(compressed_images_list + raw_images_list + raw_images_list_lower)
     )
 
     for image_path in tqdm(images_list):
