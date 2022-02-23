@@ -42,7 +42,6 @@ class ImageColorCorrectionGAN:
         )
         
         for image_path in tqdm(images):
-            print(image_path)
             # Convert raw images (CR3 files) to numpy arrays
             if image_path.lower().endswith(".cr3"):
                 with rawpy.imread(image_path) as raw:
