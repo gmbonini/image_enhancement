@@ -4,10 +4,10 @@ This repository contains Python scripts to enhance image quality and crop out bl
 
 The scripts:
 
--   image_cropper.py: removes black borders from pictures by detecting them and cropping only the image itself.
--   color_correction.py: make adjustments in the image color with two methods: 1 - Using only image processing techniques; 2 - Using a Deep Learning model that is able to generate images, to perform a fully-automatic color correction and detail enhancement. The default enhancement method is with image processing.
-
--   brightness_correction.py: apply a complex brightness correction algorithm to a directory containing images.
+-   image_cropper.py: Removes black borders from pictures by detecting them and cropping only the image itself.
+-   enhance_image_opencv.py: Make adjustments in the image color using only image processing techniques. 
+-   enhance_image_gan.py: Make adjustments in the image color using a Deep Learning model that is able to generate images, to perform a fully-automatic color correction and detail enhancement. 
+-   enhance_image_skimage.py: Apply a complex image enhancement algorithm to a directory containing images.
 
 ### Installation
 
@@ -28,25 +28,25 @@ pip install -r requirements.txt
 
 Each script can be run individually from the command line and have the following possible arguments:
 
--   --image_dir: path pointing to the directory containg all image files (.jpeg, .jpg, .png or .cr3 files are supported);
--   --out_dir: path pointing to the desired output directory, where the fixed videos or enhanced images will be saved.
+-   --image_dir: Path pointing to the directory containg all image files (.jpeg, .jpg, .png or .cr3 files are supported);
+-   --out_dir: Path pointing to the desired output directory, where the cropped or enhanced images will be saved.
 
-The image_cropper has an aditional argument:
+The `image_cropper` has an aditional argument:
 
--   --overcrop: increase the crop based on percentage value (the overcrop between 0 and 100), defaults to 5
+-   --overcrop (**optional**): Increase the crop based on percentage value (the overcrop between 0 and 100). The default percentage is 5.
 
-The color_correction has an aditional arguments:
+The `enhance_image_opencv` and `enhance_image_gan` has an aditional argument:
 
--   --gan: uses the Generative Adversarial Network to enhance the image.
--   --image_proc: uses image processing to enhance the image.
--   --white_balance (optional): apply a white balance adjustment to the image.
+-   --white_balance (**optional**): Apply a white balance adjustment to the image.
 
 You can run the scripts like this:
 
 ```shell
 python image_cropper.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --overcrop 5
 
-python color_correction.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --image_proc --gan --white_balance
+python enhance_image_opencv.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --white_balance
 
-python brightness_correction.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH
+python enhance_image_gan.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --white_balance
+
+python enhance_image_skimage.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH
 ```
