@@ -30,7 +30,7 @@ class ImageCropper:
 
         # Sum all the image lists
         self.images_list = (
-            compressed_images_list + raw_images_list + raw_images_list_lower
+            set(compressed_images_list + raw_images_list + raw_images_list_lower)
         )
 
     def bright_approach(self, image, th=10):
