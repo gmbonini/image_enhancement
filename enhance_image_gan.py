@@ -51,7 +51,6 @@ class ImageColorCorrectionGAN:
             else:
                 img = cv2.imread(image_path, 1)
 
-            img = cv2.imread(image_path)
             dim = (int(img.shape[1]*self.resize_percentage), int(img.shape[0]*self.resize_percentage))
             img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
 
