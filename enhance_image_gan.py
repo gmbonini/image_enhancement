@@ -38,7 +38,7 @@ class ImageColorCorrectionGAN:
 
         # Sum all the image lists
         images = (
-            compressed_images_list + raw_images_list + raw_images_list_lower
+            set(compressed_images_list + raw_images_list + raw_images_list_lower)
         )
         
         for image_path in tqdm(images):
