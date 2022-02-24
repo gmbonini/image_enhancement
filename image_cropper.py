@@ -97,6 +97,27 @@ class ImageCropper:
 
         return box
 
+    def box_verification(self, black_box, white_box, image):
+        
+        black_box_height = black_box[3] - black_box[1]
+        black_box_width = black_box[2] - black_box[0]
+        white_box_height = white_box[3] - white_box[1]
+        white_box_width = white_box[2] - white_box[0]
+
+        image_height = image.shape[0]
+
+        if black_box_height == image_height:
+            return white_box
+        elif black_box[3] <= image_height and black_box[3] >= image_height - 10:
+            return white_box
+        elif white_box_width >= black_box_width:
+            if white_box_height >= black_box_height:
+                return white_box
+            else:
+                return black_box
+        else:
+            return black_box
+
     def remove_borders(self, image: np.ndarray, draw=True) -> np.ndarray:
 
         """
@@ -104,6 +125,8 @@ class ImageCropper:
         and what is just a black border, get the image contours and crop out
         the black borders
         """
+        image = cv2.resize(image, (1280, 720))
+        original_image = image.copy()
 
         # First, try the dark approach
         box = self.dark_approach(image)
@@ -117,6 +140,21 @@ class ImageCropper:
             or box[3] - box[1] > 0.865 * image.shape[0]
         ):
             box = self.bright_approach(image)
+        
+        white_box = self.white_borders(image)
+
+        # cv2.rectangle(image, (white_box[0], white_box[1]), (white_box[2], white_box[3]), (255, 255, 255), 5)
+
+        box = self.box_verification(box, white_box, original_image)
+
+        # print(box)
+        # cv2.rectangle(image, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 5)
+
+        # cv2.namedWindow("Result", 0)
+        # cv2.imshow("Result", image)
+        # k = cv2.waitKey(0)
+        # if k == ord("q"):
+        #     exit()
 
         # Crop the image based on the bounding box values
         cropped = image[box[1] : box[3], box[0] : box[2]]
@@ -129,6 +167,23 @@ class ImageCropper:
         ]
 
         return cropped
+
+    def white_borders(self, image):
+
+        img = cv2.Canny(image, 80, 150)
+        img = cv2.dilate(img, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)))
+        cnts = cv2.findContours(
+            image=img, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE
+        )
+
+        cnts = imutils.grab_contours(cnts)
+        cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+        cnt = cnts[0]
+
+        x, y, w, h = cv2.boundingRect(cnt)
+        box = np.array([x, y, x + w, y + h])
+
+        return box
 
     def crop(self):
         for image_path in tqdm(self.images_list):
