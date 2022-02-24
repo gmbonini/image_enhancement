@@ -99,11 +99,15 @@ class ImageCropper:
 
     def box_verification(self, black_box, white_box, image):
         
+        """
+        This functions compare the size of the bounding boxes and returns the
+        the appropriate bounding box to use for crop.
+        """
+
         black_box_height = black_box[3] - black_box[1]
         black_box_width = black_box[2] - black_box[0]
         white_box_height = white_box[3] - white_box[1]
         white_box_width = white_box[2] - white_box[0]
-
         image_height = image.shape[0]
 
         if black_box_height == image_height:
@@ -125,8 +129,8 @@ class ImageCropper:
         and what is just a black border, get the image contours and crop out
         the black borders
         """
+        
         image = cv2.resize(image, (1280, 720))
-        original_image = image.copy()
 
         # First, try the dark approach
         box = self.dark_approach(image)
@@ -143,18 +147,8 @@ class ImageCropper:
         
         white_box = self.white_borders(image)
 
-        # cv2.rectangle(image, (white_box[0], white_box[1]), (white_box[2], white_box[3]), (255, 255, 255), 5)
-
-        box = self.box_verification(box, white_box, original_image)
-
-        # print(box)
-        # cv2.rectangle(image, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 5)
-
-        # cv2.namedWindow("Result", 0)
-        # cv2.imshow("Result", image)
-        # k = cv2.waitKey(0)
-        # if k == ord("q"):
-        #     exit()
+        # Compare the detected bounding boxes of both methods and returns the appropriate box. 
+        box = self.box_verification(box, white_box, image)
 
         # Crop the image based on the bounding box values
         cropped = image[box[1] : box[3], box[0] : box[2]]
