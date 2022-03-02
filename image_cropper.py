@@ -46,18 +46,39 @@ class ImageCropper:
         # Binarize the image to get the image splits without the black bar
         _, thresh = cv2.threshold(gray, th, 255, cv2.THRESH_BINARY)
 
-        dilate = cv2.dilate(thresh, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 25)))
+        dilate = cv2.dilate(thresh, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+        erosion = cv2.erode(
+            dilate, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1
+        )
+        open = cv2.morphologyEx(
+            erosion, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3))
+        )
 
         # Find the contours of the binary image
-        contours = cv2.findContours(dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours = cv2.findContours(open, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         contours = imutils.grab_contours(contours)
 
-        # Get the biggest contour (should be the picture contour)
-        contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
-        x, y, w, h = cv2.boundingRect(contour)
+        # Get the bounding boxes for the most significant contours
+        boxes = []
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            if w > image.shape[1] * 0.1 and h > image.shape[0] * 0.1:
+                # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                boxes.append(np.array([x, y, x + w, y + h]))
+        boxes = np.array(boxes, dtype=np.int32)
 
-        box = np.array([x, y, x + w, y + h])
-
+        # Get the bounding box that encloses all the bounding boxes
+        if len(boxes) == 1:
+            box = boxes[0]
+        elif len(boxes) == 0:
+            box = None
+        else:
+            x1 = np.min(boxes[:, 0])
+            y1 = np.min(boxes[:, 1])
+            x2 = np.max(boxes[:, 2])
+            y2 = np.max(boxes[:, 3])
+            box = np.array([x1, y1, x2, y2], dtype=np.int32)
+        
         return box
 
     def dark_approach(self, image):
@@ -79,8 +100,8 @@ class ImageCropper:
         boxes = []
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
-            # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
             if w > image.shape[1] * 0.1 and h > image.shape[0] * 0.1:
+                # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 boxes.append(np.array([x, y, x + w, y + h]))
         boxes = np.array(boxes, dtype=np.int32)
 
@@ -111,7 +132,16 @@ class ImageCropper:
         white_box_width = white_box[2] - white_box[0]
         image_height = image.shape[0]
 
-        if black_box_height <= image_height and black_box_height >= image_height - 10:
+        black_box_area = black_box_height * black_box_width
+        white_box_area = white_box_height * white_box_width
+
+        if white_box_area >= black_box_area * 0.90 and white_box_area <= black_box_area:
+            return white_box
+        elif black_box_height == image_height:
+            return white_box
+        elif black_box[3] <= image_height and black_box[3] >= image_height - 10:
+            return white_box
+        elif black_box[1] <= 10:
             return white_box
         elif white_box_width >= black_box_width:
             if white_box_height >= black_box_height:
@@ -121,7 +151,9 @@ class ImageCropper:
         else:
             return black_box
 
-    def remove_borders(self, image: np.ndarray, draw=True) -> np.ndarray:
+    def remove_borders(
+        self, image: np.ndarray, draw_both=False, draw_final=False
+    ) -> np.ndarray:
 
         """
         This functions takes an image, binarize it to get what is an image
@@ -147,6 +179,41 @@ class ImageCropper:
 
         white_box = self.white_borders(image)
 
+        if draw_both == True:
+            cv2.rectangle(
+                image,
+                (
+                    int(box[0]),
+                    int(box[1]),
+                ),
+                (
+                    int(box[2]),
+                    int(box[3]),
+                ),
+                (0, 0, 255),
+                1,
+            )
+
+            cv2.rectangle(
+                image,
+                (
+                    int(white_box[0]),
+                    int(white_box[1]),
+                ),
+                (
+                    int(white_box[2]),
+                    int(white_box[3]),
+                ),
+                (0, 255, 0),
+                1,
+            )
+
+            cv2.namedWindow("Both Methods", 0)
+            cv2.imshow("Both Methods", image)
+            k = cv2.waitKey(0)
+            if k == ord("q"):
+                exit()
+
         # Compare the detected bounding boxes of both methods and returns the appropriate box.
         box = self.box_verification(box, white_box, image)
 
@@ -156,7 +223,7 @@ class ImageCropper:
         normalized_box.append(box[2] / image.shape[1])
         normalized_box.append(box[3] / image.shape[0])
 
-        if draw == True:
+        if draw_final == True:
             cv2.rectangle(
                 original_image,
                 (
@@ -171,14 +238,13 @@ class ImageCropper:
                 5,
             )
 
-            cv2.namedWindow("BBox", 0)
-            cv2.imshow("BBox", original_image)
+            cv2.namedWindow("Result", 0)
+            cv2.imshow("Result", original_image)
             k = cv2.waitKey(0)
             if k == ord("q"):
                 exit()
 
         # Crop the image based on the bounding box values
-
         cropped = original_image[
             int(normalized_box[1] * original_image.shape[0]) : int(
                 normalized_box[3] * original_image.shape[0]
@@ -229,13 +295,13 @@ class ImageCropper:
             else:
                 image = cv2.imread(image_path, 1)
 
-            # Remove the black borders
-            cropped = self.remove_borders(image)
-
             image_name = image_path.split(sp)[-1].split(".")[0]
             image_name = image_name.replace(" ", "_")
             image_name = image_name.replace("'", "_")
             image_name = image_name.replace(",", "_")
+
+            # Remove the black borders
+            cropped = self.remove_borders(image)
 
             new_path = os.path.join(self.output_dir, image_name + ".jpg")
 
@@ -264,7 +330,7 @@ if __name__ == "__main__":
         "-c",
         "--overcrop",
         type=float,
-        default=5,
+        default=1.857,
         help="Increase the crop based on percentage value (the overcrop between 0 and 100), defaults to 5",
     )
 
