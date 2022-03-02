@@ -29,8 +29,8 @@ class ImageCropper:
         raw_images_list_lower = list(glob(os.path.join(self.directory, "*.cr3")))
 
         # Sum all the image lists
-        self.images_list = (
-            set(compressed_images_list + raw_images_list + raw_images_list_lower)
+        self.images_list = set(
+            compressed_images_list + raw_images_list + raw_images_list_lower
         )
 
     def bright_approach(self, image, th=10):
@@ -46,8 +46,10 @@ class ImageCropper:
         # Binarize the image to get the image splits without the black bar
         _, thresh = cv2.threshold(gray, th, 255, cv2.THRESH_BINARY)
 
+        dilate = cv2.dilate(thresh, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 25)))
+
         # Find the contours of the binary image
-        contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours = cv2.findContours(dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         contours = imutils.grab_contours(contours)
 
         # Get the biggest contour (should be the picture contour)
@@ -77,9 +79,8 @@ class ImageCropper:
         boxes = []
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
-
+            # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
             if w > image.shape[1] * 0.1 and h > image.shape[0] * 0.1:
-                # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 boxes.append(np.array([x, y, x + w, y + h]))
         boxes = np.array(boxes, dtype=np.int32)
 
@@ -98,7 +99,7 @@ class ImageCropper:
         return box
 
     def box_verification(self, black_box, white_box, image):
-        
+
         """
         This functions compare the size of the bounding boxes and returns the
         the appropriate bounding box to use for crop.
@@ -110,9 +111,7 @@ class ImageCropper:
         white_box_width = white_box[2] - white_box[0]
         image_height = image.shape[0]
 
-        if black_box_height == image_height:
-            return white_box
-        elif black_box[3] <= image_height and black_box[3] >= image_height - 10:
+        if black_box_height <= image_height and black_box_height >= image_height - 10:
             return white_box
         elif white_box_width >= black_box_width:
             if white_box_height >= black_box_height:
@@ -129,7 +128,8 @@ class ImageCropper:
         and what is just a black border, get the image contours and crop out
         the black borders
         """
-        
+
+        original_image = image.copy()
         image = cv2.resize(image, (1280, 720))
 
         # First, try the dark approach
@@ -144,17 +144,53 @@ class ImageCropper:
             or box[3] - box[1] > 0.865 * image.shape[0]
         ):
             box = self.bright_approach(image)
-        
+
         white_box = self.white_borders(image)
 
-        # Compare the detected bounding boxes of both methods and returns the appropriate box. 
+        # Compare the detected bounding boxes of both methods and returns the appropriate box.
         box = self.box_verification(box, white_box, image)
 
+        normalized_box = []
+        normalized_box.append(box[0] / image.shape[1])
+        normalized_box.append(box[1] / image.shape[0])
+        normalized_box.append(box[2] / image.shape[1])
+        normalized_box.append(box[3] / image.shape[0])
+
+        if draw == True:
+            cv2.rectangle(
+                original_image,
+                (
+                    int(normalized_box[0] * original_image.shape[1]),
+                    int(normalized_box[1] * original_image.shape[0]),
+                ),
+                (
+                    int(normalized_box[2] * original_image.shape[1]),
+                    int(normalized_box[3] * original_image.shape[0]),
+                ),
+                (0, 0, 255),
+                5,
+            )
+
+            cv2.namedWindow("BBox", 0)
+            cv2.imshow("BBox", original_image)
+            k = cv2.waitKey(0)
+            if k == ord("q"):
+                exit()
+
         # Crop the image based on the bounding box values
-        cropped = image[box[1] : box[3], box[0] : box[2]]
+
+        cropped = original_image[
+            int(normalized_box[1] * original_image.shape[0]) : int(
+                normalized_box[3] * original_image.shape[0]
+            ),
+            int(normalized_box[0] * original_image.shape[1]) : int(
+                normalized_box[2] * original_image.shape[1]
+            ),
+        ]
 
         increase_crop_x = int(cropped.shape[1] * self.overcrop)
         increase_crop_y = int(cropped.shape[0] * self.overcrop)
+
         cropped = cropped[
             increase_crop_y : cropped.shape[0] - increase_crop_y,
             increase_crop_x : cropped.shape[1] - increase_crop_x,
@@ -165,9 +201,9 @@ class ImageCropper:
     def white_borders(self, image):
 
         img = cv2.Canny(image, 80, 150)
-        img = cv2.dilate(img, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)))
+        dilate = cv2.dilate(img, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
         cnts = cv2.findContours(
-            image=img, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE
+            image=dilate, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE
         )
 
         cnts = imutils.grab_contours(cnts)
@@ -176,6 +212,8 @@ class ImageCropper:
 
         x, y, w, h = cv2.boundingRect(cnt)
         box = np.array([x, y, x + w, y + h])
+
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
 
         return box
 
@@ -195,10 +233,10 @@ class ImageCropper:
             cropped = self.remove_borders(image)
 
             image_name = image_path.split(sp)[-1].split(".")[0]
-            image_name = image_name.replace(" ","_")
-            image_name = image_name.replace("'","_")
-            image_name = image_name.replace(",","_")
-            
+            image_name = image_name.replace(" ", "_")
+            image_name = image_name.replace("'", "_")
+            image_name = image_name.replace(",", "_")
+
             new_path = os.path.join(self.output_dir, image_name + ".jpg")
 
             # Save the new image
