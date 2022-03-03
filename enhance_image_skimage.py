@@ -1065,12 +1065,12 @@ if __name__ == "__main__":
 
     parameters = {}
     parameters["local_contrast"] = 1.0  # no increase in details
-    parameters["mid_tones"] = 0.5  # middle of range
-    parameters["tonal_width"] = 0.5  # middle of range
+    parameters["mid_tones"] = 0.2  # middle of range
+    parameters["tonal_width"] = 0.3  # middle of range
     parameters["areas_dark"] = 0.2  # no change in dark areas
     parameters["areas_bright"] = 0.0  # no change in bright areas
-    parameters["saturation_degree"] = 1.0  # no change in color saturation
-    parameters["brightness"] = 0.3  # increase overall brightness
+    parameters["saturation_degree"] = 0.7  # no change in color saturation
+    parameters["brightness"] = 0.2  # increase overall brightness
     parameters["preserve_tones"] = True
     parameters["color_correction"] = True
     enhancer = Enhancer(parameters)
@@ -1099,8 +1099,7 @@ if __name__ == "__main__":
         else:
             image = cv2.imread(image_path, 1)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-        # Remove the black borders
+                
         enhanced = enhancer.enhance(image)
         enhanced = np.ascontiguousarray(enhanced) * 255.0
         enhanced = enhanced.astype(np.uint8)
