@@ -17,6 +17,9 @@ class ImageCropper:
 
         self.directory = directory
         self.output_dir = output_dir
+        self.default_overcrop = overcrop
+        self.overcrop_black_box = self.default_overcrop
+        self.overcrop_white_box = self.default_overcrop * 0.95
         self.overcrop = overcrop
 
         # List all images that are saved in a compressed format (JPEG, PNG, etc)
@@ -39,6 +42,8 @@ class ImageCropper:
         This function is responsible for estimating the bounding box of the picture
         (without the black borders) if it's mostly bright
         """
+
+        self.overcrop_black_box = self.default_overcrop * 0.6
 
         # Convert the image to grayscale
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -63,7 +68,7 @@ class ImageCropper:
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
             if w > image.shape[1] * 0.1 and h > image.shape[0] * 0.1:
-                # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                # cv2.rectangle(original_image, (x, y), (x + w, y + h), (0, 255, 0), 1)
                 boxes.append(np.array([x, y, x + w, y + h]))
         boxes = np.array(boxes, dtype=np.int32)
 
@@ -78,7 +83,7 @@ class ImageCropper:
             x2 = np.max(boxes[:, 2])
             y2 = np.max(boxes[:, 3])
             box = np.array([x1, y1, x2, y2], dtype=np.int32)
-        
+
         return box
 
     def dark_approach(self, image):
@@ -88,12 +93,22 @@ class ImageCropper:
         (without the black borders) if it's mostly dark
         """
 
+        self.overcrop_black_box = self.default_overcrop
+
         # Convert the image to the HSV color space
         res = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         hue, sat, val = cv2.split(res)
 
+        erosion = cv2.erode(
+            hue, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3)), iterations=1
+        )
+
+        open = cv2.morphologyEx(
+            erosion, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        )
+
         # Find the contours of the saturation channel
-        contours = cv2.findContours(hue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours = cv2.findContours(open, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         contours = imutils.grab_contours(contours)
 
         # Get the bounding boxes for the most significant contours
@@ -101,7 +116,7 @@ class ImageCropper:
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
             if w > image.shape[1] * 0.1 and h > image.shape[0] * 0.1:
-                # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
+                # cv2.rectangle(original_image, (x, y), (x + w, y + h), (0, 255, 0), 1)
                 boxes.append(np.array([x, y, x + w, y + h]))
         boxes = np.array(boxes, dtype=np.int32)
 
@@ -136,19 +151,26 @@ class ImageCropper:
         white_box_area = white_box_height * white_box_width
 
         if white_box_area >= black_box_area * 0.90 and white_box_area <= black_box_area:
+            self.overcrop = self.overcrop_white_box
             return white_box
         elif black_box_height == image_height:
+            self.overcrop = self.overcrop_white_box
             return white_box
         elif black_box[3] <= image_height and black_box[3] >= image_height - 10:
+            self.overcrop = self.overcrop_white_box
             return white_box
         elif black_box[1] <= 10:
+            self.overcrop = self.overcrop_white_box
             return white_box
         elif white_box_width >= black_box_width:
             if white_box_height >= black_box_height:
+                self.overcrop = self.overcrop_white_box
                 return white_box
             else:
+                self.overcrop = self.overcrop_black_box
                 return black_box
         else:
+            self.overcrop = self.overcrop_black_box
             return black_box
 
     def remove_borders(
@@ -174,7 +196,7 @@ class ImageCropper:
         elif (
             box[2] - box[0] > 0.865 * image.shape[1]
             or box[3] - box[1] > 0.865 * image.shape[0]
-        ):
+        ):  
             box = self.bright_approach(image)
 
         white_box = self.white_borders(image)
@@ -255,7 +277,7 @@ class ImageCropper:
         ]
 
         increase_crop_x = int(cropped.shape[1] * self.overcrop)
-        increase_crop_y = int(cropped.shape[0] * self.overcrop)
+        increase_crop_y = int(cropped.shape[0] * self.overcrop * 1.15)
 
         cropped = cropped[
             increase_crop_y : cropped.shape[0] - increase_crop_y,
@@ -330,7 +352,7 @@ if __name__ == "__main__":
         "-c",
         "--overcrop",
         type=float,
-        default=1.857,
+        default=1.0857,
         help="Increase the crop based on percentage value (the overcrop between 0 and 100), defaults to 5",
     )
 

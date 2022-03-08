@@ -66,3 +66,5 @@ test_for_dust.py
 dust/
 test/
 b/
+cr*
+dark
