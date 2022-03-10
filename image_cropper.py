@@ -14,7 +14,9 @@ sp = os.path.sep
 
 
 class ImageCropper:
-    def __init__(self, directory: str, output_dir: str, overcrop: float) -> None:
+    def __init__(
+        self, directory: str, output_dir: str, overcrop: float, white_border
+    ) -> None:
 
         self.directory = directory
         self.output_dir = output_dir
@@ -22,6 +24,7 @@ class ImageCropper:
         self.overcrop_black_box = self.default_overcrop
         self.overcrop_white_box = self.default_overcrop * 0.95
         self.overcrop = overcrop
+        self.white_border_method = white_border
 
         # List all images that are saved in a compressed format (JPEG, PNG, etc)
         compressed_images_list = list(list_images(directory))
@@ -130,83 +133,6 @@ class ImageCropper:
 
         return box
 
-    def box_verification_old(self, black_box, white_box, image):
-
-        """
-        This functions compare the size of the bounding boxes and returns the
-        the appropriate bounding box to use for crop.
-        """
-        print(black_box)
-        print(white_box)
-        black_box_height = black_box[3] - black_box[1]
-        black_box_width = black_box[2] - black_box[0]
-        white_box_height = white_box[3] - white_box[1]
-        white_box_width = white_box[2] - white_box[0]
-        image_height = image.shape[0]
-
-        if (
-            white_box_width >= black_box_width * 0.96
-            and white_box_width <= black_box_width
-        ):
-            if (
-                white_box_height >= black_box_height * 0.96
-                and white_box_height <= black_box_height
-            ):
-                print("1 - white_box")
-                self.overcrop = self.overcrop_white_box
-                return white_box
-            elif (
-                white_box_height >= black_box_height * 0.90
-                and white_box_height <= black_box_height
-            ):
-                print("1.0 - white_box")
-                self.overcrop = self.overcrop_white_box
-                return white_box
-            else:
-                print("2 - black_box")
-                self.overcrop = self.overcrop_black_box
-                return black_box
-        if (
-            white_box_width >= black_box_width * 0.92
-            and white_box_width <= black_box_width
-        ):
-            if (
-                white_box_height >= black_box_height * 0.98
-                and white_box_height <= black_box_height
-            ):
-                print("1.1 - white_box")
-                self.overcrop = self.overcrop_white_box
-                return white_box
-            else:
-                print("2.1 - black_box")
-                self.overcrop = self.overcrop_black_box
-                return black_box
-        elif black_box_height == image_height:
-            print("3 - white_box")
-            self.overcrop = self.overcrop_white_box
-            return white_box
-        elif black_box[3] <= image_height and black_box[3] >= image_height - 10:
-            print("4 - white_box")
-            self.overcrop = self.overcrop_white_box
-            return white_box
-        elif black_box[1] <= 10:
-            print("5 - white_box")
-            self.overcrop = self.overcrop_white_box
-            return white_box
-        elif white_box_width >= black_box_width:
-            if white_box_height >= black_box_height:
-                print("6 - white_box")
-                self.overcrop = self.overcrop_white_box
-                return white_box
-            else:
-                print("7 - black_box")
-                self.overcrop = self.overcrop_black_box
-                return black_box
-        else:
-            print("8 - black_box")
-            self.overcrop = self.overcrop_black_box
-            return black_box
-
     def crop_analyzer(self, crop):
 
         image = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
@@ -234,9 +160,6 @@ class ImageCropper:
         the appropriate bounding box to use for crop.
         """
 
-        print("black_box: ", black_box)
-        print("white_box: ", white_box)
-
         P1_black = [black_box[0], black_box[1]]
         P2_black = [black_box[2], black_box[1]]
         P3_black = [black_box[0], black_box[3]]
@@ -262,7 +185,6 @@ class ImageCropper:
                 p1_x = max(P1_black[0], P1_white[0])
             else:
                 p1_x = min(P1_black[0], P1_white[0])
-            # p1_x = min(P1_black[0], P1_white[0])
         # P1 - Y
         if (abs(P1_black[1] - P1_white[1])) <= threshold:
             p1_y = max(P1_black[1], P1_white[1])
@@ -274,12 +196,10 @@ class ImageCropper:
             p2y = max(P2_black[1], P2_white[1])
             crop_top = image[p1y:p2y, p1x:p2x]
             if self.crop_analyzer(crop_top):
-                print(" P1 Y")
                 # If most of the crop is black:
                 p1_y = max(P1_black[1], P1_white[1])
             else:
                 p1_y = min(P1_black[1], P1_white[1])
-            # p1_y = min(P1_black[1], P1_white[1])
 
         # P4 - X
         if (abs(P4_black[0] - P4_white[0])) <= threshold:
@@ -296,7 +216,6 @@ class ImageCropper:
                 p4_x = min(P4_black[0], P4_white[0])
             else:
                 p4_x = max(P4_black[0], P4_white[0])
-            # p4_x = max(P4_black[0], P4_white[0])
         # P4 - Y
         if (abs(P4_black[1] - P4_white[1])) <= threshold:
             p4_y = min(P4_black[1], P4_white[1])
@@ -312,15 +231,13 @@ class ImageCropper:
                 p4_y = min(P4_black[1], P4_white[1])
             else:
                 p4_y = max(P4_black[1], P4_white[1])
-            # p4_y = max(P4_black[1], P4_white[1])
 
         box = np.array([p1_x, p1_y, p4_x, p4_y], dtype=np.int32)
-        print("Final: ", box)
 
         return box
 
     def remove_borders(
-        self, image: np.ndarray, draw_both=True, draw_final=True
+        self, image: np.ndarray, draw_both=False, draw_final=False
     ) -> np.ndarray:
 
         """
@@ -332,18 +249,19 @@ class ImageCropper:
         original_image = image.copy()
         image = cv2.resize(image, (1280, 720))
 
-        # First, try the dark approach
-        box = self.dark_approach(image)
+        if not self.white_border_method:
+            # First, try the dark approach
+            box = self.dark_approach(image)
 
-        # If the dark approach resulted in a bounding box that encloses almost
-        # all the image, switch to the bright approach
-        if box is None:
-            box = self.bright_approach(image)
-        elif (
-            box[2] - box[0] > 0.865 * image.shape[1]
-            or box[3] - box[1] > 0.865 * image.shape[0]
-        ):
-            box = self.bright_approach(image)
+            # If the dark approach resulted in a bounding box that encloses almost
+            # all the image, switch to the bright approach
+            if box is None:
+                box = self.bright_approach(image)
+            elif (
+                box[2] - box[0] > 0.865 * image.shape[1]
+                or box[3] - box[1] > 0.865 * image.shape[0]
+            ):
+                box = self.bright_approach(image)
 
         white_box = self.white_borders(image)
 
@@ -378,12 +296,15 @@ class ImageCropper:
 
             cv2.namedWindow("Both Methods", 0)
             cv2.imshow("Both Methods", image)
-            # k = cv2.waitKey(0)
-            # if k == ord("q"):
-            #     exit()
+            k = cv2.waitKey(0)
+            if k == ord("q"):
+                exit()
 
-        # Compare the detected bounding boxes of both methods and returns the appropriate box.
-        box = self.box_verification(box, white_box, image)
+        if not self.white_border_method:
+            # Compare the detected bounding boxes of both methods and returns the appropriate box.
+            box = self.box_verification(box, white_box, image)
+        else:
+            box = white_box
 
         normalized_box = []
         normalized_box.append(box[0] / image.shape[1])
@@ -408,9 +329,9 @@ class ImageCropper:
 
             cv2.namedWindow("Result", 0)
             cv2.imshow("Result", original_image)
-            # k = cv2.waitKey(0)
-            # if k == ord("q"):
-            #     exit()
+            k = cv2.waitKey(0)
+            if k == ord("q"):
+                exit()
 
         # Crop the image based on the bounding box values
         cropped = original_image[
@@ -430,11 +351,6 @@ class ImageCropper:
             increase_crop_x : cropped.shape[1] - increase_crop_x,
         ]
 
-        cv2.namedWindow("Crop", 0)
-        cv2.imshow("Crop", cropped)
-        k = cv2.waitKey(0)
-        if k == ord("q"):
-            exit()
         return cropped
 
     def white_borders(self, image):
@@ -505,8 +421,14 @@ if __name__ == "__main__":
         "-c",
         "--overcrop",
         type=float,
-        default=2.5,
+        default=1.1,
         help="Increase the crop based on percentage value (the overcrop between 0 and 100), defaults to 5",
+    )
+    parser.add_argument(
+        "-w",
+        "--white_border",
+        action="store_true",
+        help="Change the method to crop images with white borders.",
     )
 
     args = parser.parse_args()
@@ -514,8 +436,9 @@ if __name__ == "__main__":
     directory = args.image_dir
     output = args.out_dir
     overcrop = args.overcrop / 100
+    white_border = args.white_border
 
     os.makedirs(output, exist_ok=True)
 
-    croper = ImageCropper(directory, output, overcrop)
+    croper = ImageCropper(directory, output, overcrop, white_border)
     croper.crop()

@@ -4,7 +4,7 @@ This repository contains Python scripts to enhance image quality and crop out bl
 
 The scripts:
 
--   image_cropper.py: Removes black borders from pictures by detecting them and cropping only the image itself.
+-   image_cropper.py: Removes borders from pictures by detecting them and cropping only the image itself. This script have two methods for borders detection, the default method detect black borders and an the optional method detect white borders. 
 -   enhance_image_opencv.py: Make adjustments in the image color using only image processing techniques. 
 -   enhance_image_gan.py: Make adjustments in the image color using a Deep Learning model that is able to generate images, to perform a fully-automatic color correction and detail enhancement. 
 -   enhance_image_skimage.py: Apply a complex image enhancement algorithm to a directory containing images.
@@ -31,9 +31,10 @@ Each script can be run individually from the command line and have the following
 -   --image_dir: Path pointing to the directory containg all image files (.jpeg, .jpg, .png or .cr3 files are supported);
 -   --out_dir: Path pointing to the desired output directory, where the cropped or enhanced images will be saved.
 
-The `image_cropper` has an aditional argument:
+The `image_cropper` has additional arguments:
 
--   --overcrop (**optional**): Increase the crop based on percentage value (the overcrop between 0 and 100). The default percentage is 5. If you want to remove the overcrop, run with: `--overcrop 0`. If you want to use the default percentage, run without the argument.
+-   --overcrop (**optional**): Increase the crop based on percentage value (the overcrop between 0 and 100). The default percentage is 1.1. If you want to use the default percentage, run without the argument. If you want to remove the overcrop, run with: `--overcrop 0`. 
+- --white_border (**optional**): Use only the method for white borders detection. 
 
 The `enhance_image_opencv` and `enhance_image_gan` has an aditional argument:
 
