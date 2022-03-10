@@ -64,7 +64,11 @@ test_hough.py
 remove_dust.py
 test_for_dust.py
 dust/
-test/
+tes*
 b/
-cr*
 dark
+old*
+new_Data
+show_images.py
+image_cropper_bak.py
+image_cropper_old.py

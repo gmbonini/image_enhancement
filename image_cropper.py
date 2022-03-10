@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 from glob import glob
 from imutils.paths import list_images
 from tqdm import tqdm
+from skimage.filters import threshold_niblack
 
 sp = os.path.sep
 
@@ -94,21 +95,14 @@ class ImageCropper:
         """
 
         self.overcrop_black_box = self.default_overcrop
+        original_image = image.copy()
 
         # Convert the image to the HSV color space
         res = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         hue, sat, val = cv2.split(res)
 
-        erosion = cv2.erode(
-            hue, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3)), iterations=1
-        )
-
-        open = cv2.morphologyEx(
-            erosion, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-        )
-
         # Find the contours of the saturation channel
-        contours = cv2.findContours(open, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours = cv2.findContours(hue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         contours = imutils.grab_contours(contours)
 
         # Get the bounding boxes for the most significant contours
@@ -116,9 +110,11 @@ class ImageCropper:
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
             if w > image.shape[1] * 0.1 and h > image.shape[0] * 0.1:
-                # cv2.rectangle(original_image, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                # cv2.rectangle(original_image, (x, y), (x + w, y + h), (0, 255, 0), 5)
                 boxes.append(np.array([x, y, x + w, y + h]))
         boxes = np.array(boxes, dtype=np.int32)
+        # cv2.namedWindow("Dark contours", 0)
+        # cv2.imshow("Dark contours", original_image)
 
         # Get the bounding box that encloses all the bounding boxes
         if len(boxes) == 1:
@@ -134,47 +130,197 @@ class ImageCropper:
 
         return box
 
-    def box_verification(self, black_box, white_box, image):
+    def box_verification_old(self, black_box, white_box, image):
 
         """
         This functions compare the size of the bounding boxes and returns the
         the appropriate bounding box to use for crop.
         """
-
+        print(black_box)
+        print(white_box)
         black_box_height = black_box[3] - black_box[1]
         black_box_width = black_box[2] - black_box[0]
         white_box_height = white_box[3] - white_box[1]
         white_box_width = white_box[2] - white_box[0]
         image_height = image.shape[0]
 
-        black_box_area = black_box_height * black_box_width
-        white_box_area = white_box_height * white_box_width
-
-        if white_box_area >= black_box_area * 0.90 and white_box_area <= black_box_area:
-            self.overcrop = self.overcrop_white_box
-            return white_box
+        if (
+            white_box_width >= black_box_width * 0.96
+            and white_box_width <= black_box_width
+        ):
+            if (
+                white_box_height >= black_box_height * 0.96
+                and white_box_height <= black_box_height
+            ):
+                print("1 - white_box")
+                self.overcrop = self.overcrop_white_box
+                return white_box
+            elif (
+                white_box_height >= black_box_height * 0.90
+                and white_box_height <= black_box_height
+            ):
+                print("1.0 - white_box")
+                self.overcrop = self.overcrop_white_box
+                return white_box
+            else:
+                print("2 - black_box")
+                self.overcrop = self.overcrop_black_box
+                return black_box
+        if (
+            white_box_width >= black_box_width * 0.92
+            and white_box_width <= black_box_width
+        ):
+            if (
+                white_box_height >= black_box_height * 0.98
+                and white_box_height <= black_box_height
+            ):
+                print("1.1 - white_box")
+                self.overcrop = self.overcrop_white_box
+                return white_box
+            else:
+                print("2.1 - black_box")
+                self.overcrop = self.overcrop_black_box
+                return black_box
         elif black_box_height == image_height:
+            print("3 - white_box")
             self.overcrop = self.overcrop_white_box
             return white_box
         elif black_box[3] <= image_height and black_box[3] >= image_height - 10:
+            print("4 - white_box")
             self.overcrop = self.overcrop_white_box
             return white_box
         elif black_box[1] <= 10:
+            print("5 - white_box")
             self.overcrop = self.overcrop_white_box
             return white_box
         elif white_box_width >= black_box_width:
             if white_box_height >= black_box_height:
+                print("6 - white_box")
                 self.overcrop = self.overcrop_white_box
                 return white_box
             else:
+                print("7 - black_box")
                 self.overcrop = self.overcrop_black_box
                 return black_box
         else:
+            print("8 - black_box")
             self.overcrop = self.overcrop_black_box
             return black_box
 
+    def crop_analyzer(self, crop):
+
+        image = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
+        # Niblack threshold.
+        window_size = 75
+        thresh_niblack = threshold_niblack(image, window_size=window_size, k=0.5)
+        binary_niblack = image > thresh_niblack
+        binary_niblack = np.ascontiguousarray(binary_niblack, dtype=np.float32)
+        binary = binary_niblack * 255
+        binary = cv2.bitwise_not(binary.astype(np.uint8))
+
+        pts = np.argwhere(binary != 0)
+
+        # If most of the crop is black: return True.
+        if pts.shape[0] < 100:
+            return True
+        else:
+            return False
+
+    def box_verification(self, black_box, white_box, image, threshold=30):
+
+        """
+        This functions compare the size of the bounding boxes and returns the
+        the appropriate bounding box to use for crop.
+        """
+
+        print("black_box: ", black_box)
+        print("white_box: ", white_box)
+
+        P1_black = [black_box[0], black_box[1]]
+        P2_black = [black_box[2], black_box[1]]
+        P3_black = [black_box[0], black_box[3]]
+        P4_black = [black_box[2], black_box[3]]
+
+        P1_white = [white_box[0], white_box[1]]
+        P2_white = [white_box[2], white_box[1]]
+        P3_white = [white_box[0], white_box[3]]
+        P4_white = [white_box[2], white_box[3]]
+
+        # P1 - X
+        if (abs(P1_black[0] - P1_white[0])) <= threshold:
+            p1_x = max(P1_black[0], P1_white[0])
+        # Analyze the left crop.
+        else:
+            p1x = min(P1_black[0], P1_white[0])
+            p1y = min(P1_black[1], P1_white[1])
+            p3x = max(P3_black[0], P3_white[0])
+            p3y = max(P3_black[1], P3_white[1])
+            crop_left = image[p1y:p3y, p1x:p3x]
+            if self.crop_analyzer(crop_left):
+                # If most of the crop is black:
+                p1_x = max(P1_black[0], P1_white[0])
+            else:
+                p1_x = min(P1_black[0], P1_white[0])
+            # p1_x = min(P1_black[0], P1_white[0])
+        # P1 - Y
+        if (abs(P1_black[1] - P1_white[1])) <= threshold:
+            p1_y = max(P1_black[1], P1_white[1])
+        # Analyze the top crop.
+        else:
+            p1x = min(P1_black[0], P1_white[0])
+            p1y = min(P1_black[1], P1_white[1])
+            p2x = max(P2_black[0], P2_white[0])
+            p2y = max(P2_black[1], P2_white[1])
+            crop_top = image[p1y:p2y, p1x:p2x]
+            if self.crop_analyzer(crop_top):
+                print(" P1 Y")
+                # If most of the crop is black:
+                p1_y = max(P1_black[1], P1_white[1])
+            else:
+                p1_y = min(P1_black[1], P1_white[1])
+            # p1_y = min(P1_black[1], P1_white[1])
+
+        # P4 - X
+        if (abs(P4_black[0] - P4_white[0])) <= threshold:
+            p4_x = min(P4_black[0], P4_white[0])
+        # Analyze the right crop.
+        else:
+            p2x = min(P2_black[0], P2_white[0])
+            p2y = min(P2_black[1], P2_white[1])
+            p4x = max(P4_black[0], P4_white[0])
+            p4y = max(P4_black[1], P4_white[1])
+            crop_right = image[p2y:p4y, p2x:p4x]
+            if self.crop_analyzer(crop_right):
+                # If most of the crop is black:
+                p4_x = min(P4_black[0], P4_white[0])
+            else:
+                p4_x = max(P4_black[0], P4_white[0])
+            # p4_x = max(P4_black[0], P4_white[0])
+        # P4 - Y
+        if (abs(P4_black[1] - P4_white[1])) <= threshold:
+            p4_y = min(P4_black[1], P4_white[1])
+        # Analyze the bottom crop.
+        else:
+            p3x = min(P3_black[0], P3_white[0])
+            p3y = min(P3_black[1], P3_white[1])
+            p4x = max(P4_black[0], P4_white[0])
+            p4y = max(P4_black[1], P4_white[1])
+            crop_bottom = image[p3y:p4y, p3x:p4x]
+            if self.crop_analyzer(crop_bottom):
+                # If most of the crop is black:
+                p4_y = min(P4_black[1], P4_white[1])
+            else:
+                p4_y = max(P4_black[1], P4_white[1])
+            # p4_y = max(P4_black[1], P4_white[1])
+
+        box = np.array([p1_x, p1_y, p4_x, p4_y], dtype=np.int32)
+        print("Final: ", box)
+
+        return box
+
     def remove_borders(
-        self, image: np.ndarray, draw_both=False, draw_final=False
+        self, image: np.ndarray, draw_both=True, draw_final=True
     ) -> np.ndarray:
 
         """
@@ -196,7 +342,7 @@ class ImageCropper:
         elif (
             box[2] - box[0] > 0.865 * image.shape[1]
             or box[3] - box[1] > 0.865 * image.shape[0]
-        ):  
+        ):
             box = self.bright_approach(image)
 
         white_box = self.white_borders(image)
@@ -232,9 +378,9 @@ class ImageCropper:
 
             cv2.namedWindow("Both Methods", 0)
             cv2.imshow("Both Methods", image)
-            k = cv2.waitKey(0)
-            if k == ord("q"):
-                exit()
+            # k = cv2.waitKey(0)
+            # if k == ord("q"):
+            #     exit()
 
         # Compare the detected bounding boxes of both methods and returns the appropriate box.
         box = self.box_verification(box, white_box, image)
@@ -262,9 +408,9 @@ class ImageCropper:
 
             cv2.namedWindow("Result", 0)
             cv2.imshow("Result", original_image)
-            k = cv2.waitKey(0)
-            if k == ord("q"):
-                exit()
+            # k = cv2.waitKey(0)
+            # if k == ord("q"):
+            #     exit()
 
         # Crop the image based on the bounding box values
         cropped = original_image[
@@ -277,13 +423,18 @@ class ImageCropper:
         ]
 
         increase_crop_x = int(cropped.shape[1] * self.overcrop)
-        increase_crop_y = int(cropped.shape[0] * self.overcrop * 1.15)
+        increase_crop_y = int(cropped.shape[0] * self.overcrop)
 
         cropped = cropped[
             increase_crop_y : cropped.shape[0] - increase_crop_y,
             increase_crop_x : cropped.shape[1] - increase_crop_x,
         ]
 
+        cv2.namedWindow("Crop", 0)
+        cv2.imshow("Crop", cropped)
+        k = cv2.waitKey(0)
+        if k == ord("q"):
+            exit()
         return cropped
 
     def white_borders(self, image):
@@ -313,6 +464,9 @@ class ImageCropper:
                 with rawpy.imread(image_path) as raw:
                     image = raw.postprocess()
                 image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+                _, encoded_image = cv2.imencode(".jpg", image, encode_param)
+                image = cv2.imdecode(encoded_image, 1)
             # Read compressed images with OpenCV
             else:
                 image = cv2.imread(image_path, 1)
@@ -321,11 +475,10 @@ class ImageCropper:
             image_name = image_name.replace(" ", "_")
             image_name = image_name.replace("'", "_")
             image_name = image_name.replace(",", "_")
+            new_path = os.path.join(self.output_dir, image_name + ".jpg")
 
             # Remove the black borders
             cropped = self.remove_borders(image)
-
-            new_path = os.path.join(self.output_dir, image_name + ".jpg")
 
             # Save the new image
             cv2.imwrite(new_path, cropped)
@@ -352,7 +505,7 @@ if __name__ == "__main__":
         "-c",
         "--overcrop",
         type=float,
-        default=1.0857,
+        default=2.5,
         help="Increase the crop based on percentage value (the overcrop between 0 and 100), defaults to 5",
     )
 
