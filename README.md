@@ -34,7 +34,7 @@ Each script can be run individually from the command line and have the following
 The `image_cropper` has additional arguments:
 
 -   --overcrop (**optional**): Increase the crop based on percentage value (the overcrop between 0 and 100). The default percentage is 1.1. If you want to use the default percentage, run without the argument. If you want to remove the overcrop, run with: `--overcrop 0`. 
-- --white_border (**optional**): Use only the method for white borders detection. 
+-   --white_border (**optional**): Use only the method for `white borders` detection. 
 
 The `enhance_image_opencv` and `enhance_image_gan` has an aditional argument:
 
@@ -47,7 +47,7 @@ The `enhance_image_gan` has an aditional argument:
 You can run the scripts like this:
 
 ```shell
-python image_cropper.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --overcrop 1.09
+python image_cropper.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --overcrop 1.09 --white_border
 
 python enhance_image_opencv.py --image_dir IMAGE_DIR_PATH --out_dir OUT_DIR_PATH --white_balance
 
