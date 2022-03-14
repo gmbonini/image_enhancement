@@ -41,6 +41,10 @@ class EnhanceCrop:
 
     def crop(self):
 
+        """
+        Remove black borders from the image and apply an color enhancement in the cropped image.
+        """
+
         parameters = {}
         parameters["local_contrast"] = 1.0     # no increase in details
         parameters["mid_tones"] = 0.2          # middle of range
@@ -77,11 +81,12 @@ class EnhanceCrop:
             # Remove the black borders
             cropped = croper.remove_borders(image)
 
+            # Enhance the cropped image
             enhanced = enhancer.enhance(cropped)
             enhanced = np.ascontiguousarray(enhanced) * 255.0
             enhanced = enhanced.astype(np.uint8)
 
-            # Save the new image
+            # Save the enhanced image
             cv2.imwrite(new_path, enhanced)
 
         print(f"Cropped pictures saved to {self.output_dir}")
