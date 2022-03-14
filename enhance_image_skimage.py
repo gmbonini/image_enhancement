@@ -1004,22 +1004,22 @@ class Enhancer(object):
         image_contrast = self.apply_local_contrast_enhancement(
             image=gray,
             image_ph_mask=mask,
-            degree=parameters["local_contrast"],
+            degree=self.parameters["local_contrast"],
         )
 
         # apply spatial tonemapping on the previous stage
         image_tonemapped = self.apply_spatial_tonemapping(
             image=image_contrast,
             image_ph_mask=mask,
-            mid_tone=parameters["mid_tones"],
-            tonal_width=parameters["tonal_width"],
-            areas_dark=parameters["areas_dark"],
-            areas_bright=parameters["areas_bright"],
-            preserve_tones=parameters["preserve_tones"],
+            mid_tone=self.parameters["mid_tones"],
+            tonal_width=self.parameters["tonal_width"],
+            areas_dark=self.parameters["areas_dark"],
+            areas_bright=self.parameters["areas_bright"],
+            preserve_tones=self.parameters["preserve_tones"],
         )
 
         image_brightness = self.adjust_brightness(
-            image_tonemapped, degree=parameters["brightness"]
+            image_tonemapped, degree=self.parameters["brightness"]
         )
 
         # transfer the enhancement on the color image (in the linear color space)
@@ -1028,14 +1028,14 @@ class Enhancer(object):
         )
 
         # apply color correction (if needed)
-        if parameters["color_correction"] is True:
+        if self.parameters["color_correction"] is True:
             image_colortone = self.correct_colors(image=image_colortone)
 
         # adjust the color saturation
         image_colortone_saturation = self.change_color_saturation(
             image_color=image_colortone,
             image_ph_mask=mask,
-            sat_degree=parameters["saturation_degree"],
+            sat_degree=self.parameters["saturation_degree"],
         )
 
         return image_colortone_saturation

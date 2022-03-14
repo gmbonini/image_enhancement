@@ -8,7 +8,6 @@ from argparse import ArgumentParser
 from glob import glob
 from imutils.paths import list_images
 from tqdm import tqdm
-from skimage.filters import threshold_otsu, threshold_niblack, threshold_sauvola
 
 sp = os.path.sep
 
@@ -533,8 +532,6 @@ class ImageCropper:
             image_name = image_name.replace("'", "_")
             image_name = image_name.replace(",", "_")
             new_path = os.path.join(self.output_dir, image_name + ".jpg")
-
-            # print(image_name)
 
             # Remove the black borders
             cropped = self.remove_borders(image)
