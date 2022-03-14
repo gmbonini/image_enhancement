@@ -8,8 +8,8 @@ from argparse import ArgumentParser
 from glob import glob
 from imutils.paths import list_images
 from tqdm import tqdm
-from skimage.filters import threshold_niblack
-from skimage.restoration import denoise_wavelet
+from skimage.filters import (threshold_otsu, threshold_niblack,
+                             threshold_sauvola)
 
 sp = os.path.sep
 
@@ -42,13 +42,13 @@ class ImageCropper:
             compressed_images_list + raw_images_list + raw_images_list_lower
         )
 
-    def bright_approach(self, image, th=10):
+    def bright_approach(self, image, th=10, draw_box=False):
 
         """
         This function is responsible for estimating the bounding box of the picture
         (without the black borders) if it's mostly bright
         """
-
+        original_image = image.copy()
         self.overcrop_black_box = self.default_overcrop * 0.6
 
         # Convert the image to grayscale
@@ -90,9 +90,26 @@ class ImageCropper:
             y2 = np.max(boxes[:, 3])
             box = np.array([x1, y1, x2, y2], dtype=np.int32)
 
+        if box is not None and draw_box:
+            cv2.rectangle(
+                original_image,
+                (
+                    int(box[0]),
+                    int(box[1]),
+                ),
+                (
+                    int(box[2]),
+                    int(box[3]),
+                ),
+                (0, 0, 255),
+                5,
+            )
+            cv2.namedWindow("Bright", 0)
+            cv2.imshow("Bright", original_image)
+
         return box
 
-    def dark_approach(self, image): 
+    def dark_approach(self, image, draw_box=False):
 
         """
         This function is responsible for estimating the bounding box of the picture
@@ -148,6 +165,7 @@ class ImageCropper:
         if self.reading_raw_images:
 
             resized_image = cv2.resize(image, (1280, 720))
+            resized_image_copy = resized_image.copy()
 
             normalized_box = []
             normalized_box.append(box[0] / image.shape[1])
@@ -160,9 +178,36 @@ class ImageCropper:
             normalized_box[2] = int(normalized_box[2] * resized_image.shape[1])
             normalized_box[3] = int(normalized_box[3] * resized_image.shape[0])
 
+            if box is not None and draw_box:
+                cv2.rectangle(
+                resized_image_copy,
+                (
+                    int(normalized_box[0]),
+                    int(normalized_box[1]),
+                ),
+                (
+                    int(normalized_box[2]),
+                    int(normalized_box[3]),
+                ),
+                (0, 0, 255),
+                5,
+            )
+
+                cv2.namedWindow("Dark", 0)
+                cv2.imshow("Dark", resized_image_copy)
             return normalized_box
         else:
             return box
+
+    def calculate_pixel_percentage(self, image, p = 0.05):
+
+        # Calculate histogram
+        s = cv2.calcHist([image], [0], None, [256], [0, 256])
+        
+        # Calculate percentage of pixels with val >= p
+        s_perc = np.sum(s[int(p * 255):-1]) / np.prod(image.shape[0:2])
+
+        return s_perc
 
     def crop_analyzer(self, crop):
 
@@ -181,34 +226,49 @@ class ImageCropper:
             binary = cv2.bitwise_not(binary.astype(np.uint8))
 
             pts = np.argwhere(binary != 0)
-
-            # If most of the crop is black: return True.
-            if pts.shape[0] < points_treshold:
-                return True
-            else:
-                return False
-
-        else:
-            window_size = 105
-            k = 0.8
-            points_treshold = 100
-            # points_treshold = 2000
-
-            # Niblack threshold.
-            thresh_niblack = threshold_niblack(image, window_size=window_size, k=k)
-            binary_niblack = image > thresh_niblack
-            binary_niblack = np.ascontiguousarray(binary_niblack, dtype=np.float32)
-            binary = binary_niblack * 255
-            binary = cv2.bitwise_not(binary.astype(np.uint8))
-            pts = np.argwhere(binary != 0)
-
             # print(f"Number of points: {pts.shape[0]}")
-            
+
             # If most of the crop is black: return True.
             if pts.shape[0] < points_treshold:
+                # print(f"Number of points < points_treshold: {pts.shape[0]}")
                 return True
             else:
                 return False
+        else:
+            # Convert image to HSV color space
+            image = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+            hue, sat, val = cv2.split(image)
+
+            erosion = cv2.erode(
+                hue, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1
+            )
+            open = cv2.morphologyEx(
+                erosion,
+                cv2.MORPH_OPEN,
+                cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)),
+            )
+
+            s_thr = 0.025 
+            s_perc = self.calculate_pixel_percentage(open)
+
+            # Percentage threshold; above: valid image, below: black image.
+            if s_perc > s_thr:
+                return False
+            else:
+                s_thr = 0.4 
+                s_perc = self.calculate_pixel_percentage(val)
+
+                # Percentage threshold; above: valid image, below: black image.
+                if s_perc > s_thr:
+                    return False
+                else:
+                    s_thr = 0.75 
+                    s_perc = self.calculate_pixel_percentage(val-sat)
+
+                    if s_perc < s_thr:
+                        return False
+                    else:
+                        return True
 
     def first_box_verification(self, black_box, white_box, threshold=30):
 
@@ -359,22 +419,56 @@ class ImageCropper:
         resized = image.copy()
 
         if not self.white_border_method:
+            # if self.reading_raw_images:
+            #     box = self.dark_approach(original_image)
+            #     if (
+            #         box[2] - box[0] > 0.865 * original_image.shape[1]
+            #         or box[3] - box[1] > 0.865 * original_image.shape[0]
+            #     ):
+            #         bright_box = self.bright_approach(image)
+            #         box = self.first_box_verification(box, bright_box)
+            #         # box = self.box_verification(box, bright_box, image)
+            # else:
+            #     box = self.dark_approach(image)
+            #     if (
+            #         box[2] - box[0] > 0.865 * original_image.shape[1]
+            #         or box[3] - box[1] > 0.865 * original_image.shape[0]
+            #     ):
+            #         bright_box = self.bright_approach(image)
+            #         box = self.first_box_verification(box, bright_box)
+            #         # box = self.box_verification(box, bright_box, image)
+
             if self.reading_raw_images:
-                box = self.dark_approach(original_image)
+                dark_box = self.dark_approach(original_image)
+                bright_box = self.bright_approach(image)
                 if (
-                    box[2] - box[0] > 0.865 * original_image.shape[1]
-                    or box[3] - box[1] > 0.865 * original_image.shape[0]
+                    dark_box[2] - dark_box[0] > 0.865 * original_image.shape[1]
+                    or dark_box[3] - dark_box[1] > 0.865 * original_image.shape[0]
                 ):
-                    bright_box = self.bright_approach(image)
-                    box = self.first_box_verification(box, bright_box)
+                    box = bright_box
+                elif (
+                    bright_box[2] - bright_box[0] > 0.865 * image.shape[1]
+                    or bright_box[3] - bright_box[1] > 0.865 * image.shape[0]
+                ):
+                    box = dark_box
+                else:
+                    box = self.box_verification(dark_box, bright_box, image)
             else:
-                box = self.dark_approach(image)
+                dark_box = self.dark_approach(image)
+                bright_box = self.bright_approach(image)
                 if (
-                    box[2] - box[0] > 0.865 * original_image.shape[1]
-                    or box[3] - box[1] > 0.865 * original_image.shape[0]
+                    dark_box[2] - dark_box[0] > 0.865 * image.shape[1]
+                    or dark_box[3] - dark_box[1] > 0.865 * image.shape[0]
                 ):
-                    bright_box = self.bright_approach(image)
-                    box = self.first_box_verification(box, bright_box)
+                    box = bright_box
+                elif (
+                    bright_box[2] - bright_box[0] > 0.865 * image.shape[1]
+                    or bright_box[3] - bright_box[1] > 0.865 * image.shape[0]
+                ):
+                    box = dark_box
+                else:
+                    box = self.first_box_verification(dark_box, bright_box)
+                    # box = self.box_verification(dark_box, bright_box, image)
 
         white_box = self.white_borders(image)
 
@@ -409,9 +503,9 @@ class ImageCropper:
 
             cv2.namedWindow("Both Methods", 0)
             cv2.imshow("Both Methods", image)
-            k = cv2.waitKey(0)
-            if k == ord("q"):
-                exit()
+            # k = cv2.waitKey(0)
+            # if k == ord("q"):
+            #     exit()
 
         if not self.white_border_method:
             # Compare the detected bounding boxes of both methods and returns the appropriate box.
@@ -504,6 +598,8 @@ class ImageCropper:
             image_name = image_name.replace("'", "_")
             image_name = image_name.replace(",", "_")
             new_path = os.path.join(self.output_dir, image_name + ".jpg")
+
+            # print(image_name)
 
             # Remove the black borders
             cropped = self.remove_borders(image)

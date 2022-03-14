@@ -67,7 +67,9 @@ dust/
 tes*
 b/
 dark
+raw*
 old*
+jpeg*
 new_Data
 show_images.py
 image_cropper_bak.py
