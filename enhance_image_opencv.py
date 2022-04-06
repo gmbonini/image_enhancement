@@ -22,6 +22,7 @@ class ImageColorCorrectionOpenCV:
         self.apply_white_balance = white_balance
 
     def gamma_correction(self, img, gamma=0.8):
+        # Apply a gama coorection on the image
         lookUpTable = np.empty((1,256), np.uint8)
         for i in range(256):
             lookUpTable[0,i] = np.clip(pow(i / 255.0, gamma) * 255.0, 0, 255)
@@ -29,11 +30,12 @@ class ImageColorCorrectionOpenCV:
         return result
         
     def brightness_correction(self, img, alpha=1.0, beta=15):
+        # Apply a brightness correction on the image
         result = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
         return result
 
     def saturation_correction(self, img):
-        # Converting image to HSV Color model 
+        # Converting image to HSV colorspace 
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) 
 
         # Splitting the HSV image to different channels
@@ -46,13 +48,17 @@ class ImageColorCorrectionOpenCV:
         # Merge the CLAHE enhanced S-channel with the h and v channel
         hsv_img_s = cv2.merge((h, c_hsv_s, v))
 
-        # Converting image from LAB Color model to BGR model
+        # Converting image from HSV Color model to BGR model
         result = cv2.cvtColor(hsv_img_s, cv2.COLOR_HSV2BGR)
         
         return result
 
     def white_balance_correction(self, img):
+        
+        # Split the image channels
         b, g, r = cv2.split(img)
+        
+        # Calculates the mean of each channel
         r_avg = cv2.mean(r)[0]
         g_avg = cv2.mean(g)[0]
         b_avg = cv2.mean(b)[0]
@@ -67,6 +73,7 @@ class ImageColorCorrectionOpenCV:
         g = cv2.addWeighted(src1=g, alpha=kg, src2=0, beta=0, gamma=0)
         b = cv2.addWeighted(src1=b, alpha=kb, src2=0, beta=0, gamma=0)
         
+        # merge the processed channels
         balance_processed = cv2.merge([b, g, r])
 
         return balance_processed
@@ -97,12 +104,18 @@ class ImageColorCorrectionOpenCV:
             # Read compressed images with OpenCV
             else:
                 img = cv2.imread(image_path, 1)
-
+            
+            # Aplly brightness correction on the image
             brightness_corrected = self.brightness_correction(img, alpha=self.alpha, beta=self.beta)
+            
+            # Aplly gamma correction on the brightness corrected image
             gamma_corrected = self.gamma_correction(brightness_corrected, self.gamma)
+            
+            # Aplly saturation correction on the gamma corrected image
             saturation_corrected = self.saturation_correction(gamma_corrected)
             result = saturation_corrected
-
+            
+            # Remove spaces, "'" and "," from the filename
             image_name = image_path.split(sp)[-1].split(".")[0]
             image_name = image_name.replace(" ","_")
             image_name = image_name.replace("'","_")
@@ -113,6 +126,7 @@ class ImageColorCorrectionOpenCV:
             cv2.imwrite(new_path, result)              # HSV image
 
             if  self.apply_white_balance:
+                # Aplly white balance correction on the saturation corrected image
                 white_balanced = self.white_balance_correction(saturation_corrected)
                 cv2.imwrite(new_path, white_balanced)  # HSV with white balance
 
