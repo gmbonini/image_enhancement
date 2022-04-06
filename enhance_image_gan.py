@@ -14,7 +14,9 @@ sp = os.path.sep
 
 
 class ImageColorCorrectionGAN:
-    def __init__(self, directory: str, output_dir: str, white_balance, resize: float) -> None:
+    def __init__(
+        self, directory: str, output_dir: str, white_balance, resize: float
+    ) -> None:
         self.directory = directory
         self.output_dir = output_dir
         self.alpha = 1.0
@@ -25,8 +27,33 @@ class ImageColorCorrectionGAN:
 
         self.model = EnlightenOnnxModel()
 
+    def white_balance_correction(self, img):
+
+        # Split the image channels
+        b, g, r = cv2.split(img)
+
+        # Calculates the mean of each channel
+        r_avg = cv2.mean(r)[0]
+        g_avg = cv2.mean(g)[0]
+        b_avg = cv2.mean(b)[0]
+
+        # Find the gain of each channel
+        k = (r_avg + g_avg + b_avg) / 3
+        kr = k / r_avg
+        kg = k / g_avg
+        kb = k / b_avg
+
+        r = cv2.addWeighted(src1=r, alpha=kr, src2=0, beta=0, gamma=0)
+        g = cv2.addWeighted(src1=g, alpha=kg, src2=0, beta=0, gamma=0)
+        b = cv2.addWeighted(src1=b, alpha=kb, src2=0, beta=0, gamma=0)
+
+        # merge the processed channels
+        balance_processed = cv2.merge([b, g, r])
+
+        return balance_processed
+
     def image_color_correction(self):
-        
+
         # List all images that are saved in a compressed format (JPEG, PNG, etc)
         compressed_images_list = list(list_images(self.directory))
 
@@ -37,10 +64,8 @@ class ImageColorCorrectionGAN:
         raw_images_list_lower = list(glob(os.path.join(self.directory, "*.cr3")))
 
         # Sum all the image lists
-        images = (
-            set(compressed_images_list + raw_images_list + raw_images_list_lower)
-        )
-        
+        images = set(compressed_images_list + raw_images_list + raw_images_list_lower)
+
         for image_path in tqdm(images):
             # Convert raw images (CR3 files) to numpy arrays
             if image_path.lower().endswith(".cr3"):
@@ -51,26 +76,34 @@ class ImageColorCorrectionGAN:
             else:
                 img = cv2.imread(image_path, 1)
 
-            dim = (int(img.shape[1]*self.resize_percentage), int(img.shape[0]*self.resize_percentage))
-            img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
+            # Apply a resize on the image
+            dim = (
+                int(img.shape[1] * self.resize_percentage),
+                int(img.shape[0] * self.resize_percentage),
+            )
+            img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 
+            # Pass the image to the model, and run inference
             model_res = self.model.predict(img)
             model_res = np.ascontiguousarray(model_res, dtype=np.uint8)
-            
+
+            # Remove spaces, "'" and "," from the filename
             image_name = image_path.split(sp)[-1].split(".")[0]
-            image_name = image_name.replace(" ","_")
-            image_name = image_name.replace("'","_")
-            image_name = image_name.replace(",","_")
-            
+            image_name = image_name.replace(" ", "_")
+            image_name = image_name.replace("'", "_")
+            image_name = image_name.replace(",", "_")
+
             new_path = os.path.join(self.output_dir, image_name + ".jpg")
 
-            cv2.imwrite(new_path, model_res)           # GAN
+            cv2.imwrite(new_path, model_res)  # GAN
 
-            if  self.apply_white_balance:
+            if self.apply_white_balance:
+
+                # Apply a white ballance correction on the model prediction
                 model_res_white = self.white_balance_correction(model_res)
                 model_res_white = np.ascontiguousarray(model_res_white, dtype=np.uint8)
-                cv2.imwrite(new_path, model_res_white) # GAN with white balance
-        
+                cv2.imwrite(new_path, model_res_white)  # GAN with white balance
+
         print(f"Enhanced pictures with GAN saved to {self.output_dir}")
 
         return
@@ -94,7 +127,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-w",
         "--white_balance",
-        action='store_true',
+        action="store_true",
         help="Apply a white balance adjustment to the image.",
     )
     parser.add_argument(
@@ -114,4 +147,3 @@ if __name__ == "__main__":
 
     color_correction = ImageColorCorrectionGAN(directory, output, white_balance, resize)
     color_correction.image_color_correction()
-
