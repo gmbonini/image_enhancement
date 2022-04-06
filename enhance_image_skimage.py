@@ -1104,6 +1104,7 @@ if __name__ == "__main__":
         enhanced = np.ascontiguousarray(enhanced) * 255.0
         enhanced = enhanced.astype(np.uint8)
 
+        # Remove spaces, "'" and "," from the filename
         image_name = image_path.split(sp)[-1].split(".")[0]
         image_name = image_name.replace(" ","_")
         image_name = image_name.replace("'","_")
