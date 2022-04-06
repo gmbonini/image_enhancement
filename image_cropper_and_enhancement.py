@@ -71,7 +71,8 @@ class EnhanceCrop:
             else:
                 croper.reading_raw_images = False
                 image = cv2.imread(image_path, 1)
-
+            
+            # Remove spaces, "'" and "," from the filename.
             image_name = image_path.split(sp)[-1].split(".")[0]
             image_name = image_name.replace(" ", "_")
             image_name = image_name.replace("'", "_")
