@@ -46,19 +46,31 @@ class ImageCropper:
         This function is responsible for estimating the bounding box of the picture
         (without the black borders) if it's mostly bright
         """
+
+        # Copy the original image
         original_image = image.copy()
+
+        # Set a 60% of the overcrop percentage
         self.overcrop_black_box = self.default_overcrop * 0.6
 
         # Convert the image to grayscale
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        # Binarize the image to get the image splits without the black bar
+        # Binarize the image with threshold
         _, thresh = cv2.threshold(gray, th, 255, cv2.THRESH_BINARY)
 
-        dilate = cv2.dilate(thresh, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+        # Dilate the threshold result - increase the white region in the image or the size of the foreground object
+        dilate = cv2.dilate(
+            thresh,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)),
+        )
+
+        # Erodes the dilated image - the thickness or size of the foreground object decreases
         erosion = cv2.erode(
             dilate, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1
         )
+
+        # Remove noise of the eroded image
         open = cv2.morphologyEx(
             erosion, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3))
         )
@@ -114,28 +126,39 @@ class ImageCropper:
         (without the black borders) if it's mostly dark
         """
 
+        # Set a 100% of the overcrop percentage
         self.overcrop_black_box = self.default_overcrop
 
-        # Convert the image to the HSV color space
+        # Convert the image to the HSV colorspace
         res = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # Split the image channels
         hue, sat, val = cv2.split(res)
 
+        # Erodes the HUE channel of the image - the thickness or size of the foreground object decreases
         erosion = cv2.erode(
             hue, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1
         )
+
+        # Remove noise of the eroded image
         open = cv2.morphologyEx(
             erosion, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 6))
         )
-        dilate = cv2.dilate(open, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+
+        # Dilate the opening image - increase the white region in the image or the size of the foreground object
+        dilate = cv2.dilate(
+            open,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)),
+        )
 
         if self.reading_raw_images:
-            # Find the contours of the dilatation
+            # Find the contours of the *dilatation* in case of RAW images
             contours = cv2.findContours(
                 dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
             )
             contours = imutils.grab_contours(contours)
         else:
-            # Find the contours of the hue channel
+            # Find the contours of the *hue channel* in case of JPEG images
             contours = cv2.findContours(hue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
             contours = imutils.grab_contours(contours)
 
@@ -161,7 +184,7 @@ class ImageCropper:
             box = np.array([x1, y1, x2, y2], dtype=np.int32)
 
         if self.reading_raw_images:
-
+            # In case of RAW images, apply a resize
             resized_image = cv2.resize(image, (1280, 720))
             resized_image_copy = resized_image.copy()
 
@@ -171,6 +194,7 @@ class ImageCropper:
             normalized_box.append(box[2] / image.shape[1])
             normalized_box.append(box[3] / image.shape[0])
 
+            # Normalize the bounding box coordinates
             normalized_box[0] = int(normalized_box[0] * resized_image.shape[1])
             normalized_box[1] = int(normalized_box[1] * resized_image.shape[0])
             normalized_box[2] = int(normalized_box[2] * resized_image.shape[1])
@@ -202,7 +226,7 @@ class ImageCropper:
         # Calculate histogram
         s = cv2.calcHist([image], [0], None, [256], [0, 256])
 
-        # Calculate percentage of pixels with val >= p
+        # Calculate percentage of pixels where the first image channel >= p
         s_perc = np.sum(s[int(p * 255) : -1]) / np.prod(image.shape[0:2])
 
         return s_perc
@@ -236,11 +260,16 @@ class ImageCropper:
         else:
             # Convert image to HSV color space
             image = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+
+            # Split the image channels
             hue, sat, val = cv2.split(image)
 
+            # Erodes the HUE channel of the image
             erosion = cv2.erode(
                 hue, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1
             )
+
+            # Remove noise of the eroded image
             open = cv2.morphologyEx(
                 erosion,
                 cv2.MORPH_OPEN,
@@ -264,6 +293,7 @@ class ImageCropper:
                     s_thr = 0.75
                     s_perc = self.calculate_pixel_percentage(val - sat)
 
+                    # Percentage threshold; below: valid image, above: black image.
                     if s_perc < s_thr:
                         return False
                     else:
@@ -282,15 +312,17 @@ class ImageCropper:
         if white_box is None:
             return black_box
 
-        P1_black = [black_box[0], black_box[1]]
-        P2_black = [black_box[2], black_box[1]]
-        P3_black = [black_box[0], black_box[3]]
-        P4_black = [black_box[2], black_box[3]]
+        # Get the bounding box vertex - black borders method
+        P1_black = [black_box[0], black_box[1]] # Top left
+        P2_black = [black_box[2], black_box[1]] # Top right
+        P3_black = [black_box[0], black_box[3]] # Bottom left
+        P4_black = [black_box[2], black_box[3]] # Bottom right
 
-        P1_white = [white_box[0], white_box[1]]
-        P2_white = [white_box[2], white_box[1]]
-        P3_white = [white_box[0], white_box[3]]
-        P4_white = [white_box[2], white_box[3]]
+        # Get the bounding box vertex - white borders method
+        P1_white = [white_box[0], white_box[1]] # Top left
+        P2_white = [white_box[2], white_box[1]] # Top right
+        P3_white = [white_box[0], white_box[3]] # Bottom left
+        P4_white = [white_box[2], white_box[3]] # Bottom right
 
         # P1 - X
         if (abs(P1_black[0] - P1_white[0])) <= threshold:
@@ -368,42 +400,70 @@ class ImageCropper:
         the black borders
         """
 
+        # Copy the original image
         original_image = image.copy()
+
+        # Apply a resize on the image, to improove the border detection
         image = cv2.resize(image, (1280, 720))
+
+        # Copy the resized image
         resized = image.copy()
 
+        # If are not using the white borders detection method
         if not self.white_border_method:
+
+            # If are reading RAW images
             if self.reading_raw_images:
+
+                # Pass the original image to dark approach
                 dark_box = self.dark_approach(original_image)
+
+                # Pass the resized image to bright approach
                 bright_box = self.bright_approach(image)
+
+                # If the dark approach bounding box occupies more than 86% of the original image size,
+                # set the bright approach bounding box coordinates
                 if (
                     dark_box[2] - dark_box[0] > 0.865 * original_image.shape[1]
                     or dark_box[3] - dark_box[1] > 0.865 * original_image.shape[0]
                 ):
                     box = bright_box
+                # If the bright approach bounding box occupies more than 86% of the original image size,
+                # set the dark approach bounding box coordinates
                 elif (
                     bright_box[2] - bright_box[0] > 0.865 * image.shape[1]
                     or bright_box[3] - bright_box[1] > 0.865 * image.shape[0]
                 ):
                     box = dark_box
+                # Choose the most appropriate bounding box coorditates, between the dark and bright approach
                 else:
                     box = self.box_verification(dark_box, bright_box, image)
             else:
+                # Pass the resized image to dark approach
                 dark_box = self.dark_approach(image)
+
+                # Pass the resized image to bright approach
                 bright_box = self.bright_approach(image)
+
+                # If the dark approach bounding box occupies more than 86% of the resized image size,
+                # set the bright approach bounding box coordinates
                 if (
                     dark_box[2] - dark_box[0] > 0.865 * image.shape[1]
                     or dark_box[3] - dark_box[1] > 0.865 * image.shape[0]
                 ):
                     box = bright_box
+                # If the bright approach bounding box occupies more than 86% of the resized image size,
+                # set the dark approach bounding box coordinates
                 elif (
                     bright_box[2] - bright_box[0] > 0.865 * image.shape[1]
                     or bright_box[3] - bright_box[1] > 0.865 * image.shape[0]
                 ):
                     box = dark_box
+                # Choose the most appropriate bounding box coorditates, between the dark and bright approach
                 else:
                     box = self.box_verification(dark_box, bright_box, image)
 
+        # Detect the borders with the white border detection method
         white_box = self.white_borders(image)
 
         if draw_both == True:
@@ -441,12 +501,17 @@ class ImageCropper:
             # if k == ord("q"):
             #     exit()
 
+        # If are not using the white borders detection method
         if not self.white_border_method:
+
             # Compare the detected bounding boxes of both methods and returns the appropriate box.
             box = self.box_verification(box, white_box, resized)
         else:
+            # Set the white border bounding box coordinates
             box = white_box
 
+        # Normalize the bounding boxes coordinates, because the cropped image will be the original image,
+        # not the resized image
         normalized_box = []
         normalized_box.append(box[0] / image.shape[1])
         normalized_box.append(box[1] / image.shape[0])
@@ -484,6 +549,7 @@ class ImageCropper:
             ),
         ]
 
+        # Increase the crop, according to the overcrop percentage
         increase_crop_x = int(cropped.shape[1] * self.overcrop)
         increase_crop_y = int(cropped.shape[0] * self.overcrop)
 
@@ -496,20 +562,34 @@ class ImageCropper:
 
     def white_borders(self, image):
 
+        # Detect the edges of the image
         img = cv2.Canny(image, 80, 150)
-        dilate = cv2.dilate(img, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)))
+
+        # Dilate the detected edges - increase the white region in the image or the size of the foreground object
+        dilate = cv2.dilate(
+            img,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)),
+        )
+
+        # Find the contours of the dilated image
         cnts = cv2.findContours(
             image=dilate, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE
         )
 
+        # Grab the image contours
         cnts = imutils.grab_contours(cnts)
+
+        # Sort the contours
         cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
+
+        # Get the largest contour found
         cnt = cnts[0]
 
+        # Get the bounding box of the contour
         x, y, w, h = cv2.boundingRect(cnt)
         box = np.array([x, y, x + w, y + h])
 
-        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
+        # cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 5)
 
         return box
 
@@ -527,6 +607,7 @@ class ImageCropper:
                 self.reading_raw_images = False
                 image = cv2.imread(image_path, 1)
 
+            # Remove spaces, "'" and "," from the filename
             image_name = image_path.split(sp)[-1].split(".")[0]
             image_name = image_name.replace(" ", "_")
             image_name = image_name.replace("'", "_")
